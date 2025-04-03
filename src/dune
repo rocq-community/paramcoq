@@ -3,6 +3,6 @@
  (public_name coq-paramcoq.plugin)
  (synopsis "Plugin for generating parametricity statements to perform refinement proofs")
  (flags :standard -rectypes -w -9-27)
- (libraries coq-core.plugins.ltac))
+ (libraries coq-core.plugins.ltac)) ; not sure if ltac dep is real
 
 (coq.pp (modules abstraction))

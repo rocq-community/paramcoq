@@ -15,20 +15,18 @@
 DECLARE PLUGIN "coq-paramcoq.plugin"
 
 {
-open Ltac_plugin
 open Feedback
 open Stdarg
-open Tacarg
 open Parametricity
 open Declare_translation
 }
 
 VERNAC COMMAND EXTEND SetParametricityTactic CLASSIFIED AS SIDEFF
 | #[ locality = Tactic_option.tac_option_locality; ]
-  [ "Parametricity" "Tactic" ":=" tactic(t) ] -> {
+  [ "Parametricity" "Tactic" ":=" generic_tactic(t) ] -> {
     Relations.set_parametricity_tactic
       locality
-      (Tacintern.glob_tactic t) }
+      (Gentactic.intern (Global.env()) t) }
 END
 
 VERNAC COMMAND EXTEND ShowTable CLASSIFIED AS QUERY

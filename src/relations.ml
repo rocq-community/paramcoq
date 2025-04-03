@@ -10,7 +10,6 @@
 (**************************************************************************)
 
 
-open Ltac_plugin
 open Names
 open Globnames
 open Libobject
