@@ -1141,7 +1141,7 @@ let fix_template_params order evdr env temp b params =
   let cstrs = UVars.UContext.constraints uctx in
   let univs = Array.concat @@ Array.map_to_list map_univs univs in
   let cstrs = Univ.Constraints.fold fold_cstrs cstrs Univ.Constraints.empty in
-  let unames = Array.make (Array.length qvars) Anonymous, Array.make (Array.length univs) Anonymous in
+  let unames = { UVars.quals = Array.make (Array.length qvars) Anonymous; UVars.univs = Array.make (Array.length univs) Anonymous } in
   let uctx = UVars.UContext.make unames (UVars.Instance.of_array (qvars,univs), cstrs) in
   let default_univs =
     let qs, us = UVars.Instance.to_array temp.template_defaults in
