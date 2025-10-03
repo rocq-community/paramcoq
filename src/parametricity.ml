@@ -251,11 +251,11 @@ let abstract_env (env : Environ.env) (init : constr) =
 
 let mkFreshInd env evd c =
   let evd', res = Evd.fresh_inductive_instance env !evd c in
-  evd := evd'; of_constr @@ Constr.mkIndU res
+  evd := evd'; EConstr.mkIndU res
 
 let mkFreshConstruct env evd c =
   let evd', res = Evd.fresh_constructor_instance env !evd c in
-  evd := evd'; of_constr @@ Constr.mkConstructU res
+  evd := evd'; EConstr.mkConstructU res
 
 (* prodn n [xn:Tn;..;x1:T1;Gamma] b = (x1:T1)..(xn:Tn)b *)
 let prodn n env b =
@@ -453,7 +453,7 @@ and translate_constant order (evd : Evd.evar_map ref) env cst : constr =
   let kn, names_k = cst in
   let names = EInstance.kind !evd names_k in
   try
-   let evd', constr = fresh_global ~rigid:Evd.univ_rigid ~names env !evd (Relations.get_constant order kn) in
+   let evd', constr = fresh_global ~rigid:Evd.univ_rigid ~names:names_k env !evd (Relations.get_constant order kn) in
    evd := evd';
    constr
   with Not_found ->
@@ -520,15 +520,14 @@ and translate_rel_context order evd env rc =
 
 and translate_variable order env evdr v : constr =
   try
-    let evd, (cst,u) = Evd.fresh_constant_instance ~rigid:Evd.univ_rigid env !evdr (Relations.get_variable order v) in
+    let evd, pcst = Evd.fresh_constant_instance ~rigid:Evd.univ_rigid env !evdr (Relations.get_variable order v) in
     evdr := evd;
-    mkConstU (cst,EInstance.make u)
+    mkConstU pcst
   with Not_found ->
     error
       (Pp.str (Printf.sprintf "The variable '%s' has no registered translation, provide one with the Realizer command." (Names.Id.to_string v)))
 and translate_inductive order env evdr (ind, names) =
   try
-   let names = EInstance.kind !evdr names in
    let evd, constr = fresh_global ~rigid:Evd.univ_rigid ~names env !evdr (Relations.get_inductive order ind) in
    evdr := evd;
    constr
