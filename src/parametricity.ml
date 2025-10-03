@@ -335,7 +335,8 @@ let rec relation order evd env (t : constr) : constr =
     debug_mode := false;
     let env_R = translate_env order evd env in
     let na = Namegen.named_hd env !evd t Anonymous in
-    let lams = range (fun k -> (Context.make_annot (prime_name order k na) ERelevance.relevant, None, lift k (prime !evd order k t))) order in
+    let rel = Retyping.relevance_of_type env !evd t in
+    let lams = range (fun k -> (Context.make_annot (prime_name order k na) rel, None, lift k (prime !evd order k t))) order in
     let env_R = push_rel_context (List.map toDecl lams) env_R in
     debug_mode := true;
     debug [`Relation] "output =" env_R !evd res;
@@ -355,7 +356,8 @@ and translate order evd env (t : constr) : constr =
     | Sort _ | Prod (_,_,_) ->
         (* [..., _ : t'', _ : t', _ : t] *)
         let na = Namegen.named_hd env !evd t Anonymous in
-        let lams = range (fun k -> (Context.make_annot (prime_name order k na) ERelevance.relevant, lift k (prime !evd order k t))) order in
+        let rel = Retyping.relevance_of_type env !evd t in
+        let lams = range (fun k -> (Context.make_annot (prime_name order k na) rel, lift k (prime !evd order k t))) order in
         compose_lam lams (relation order evd env t)
 
     | App (c,l) ->
@@ -477,7 +479,8 @@ and translate_constant order (evd : Evd.evar_map ref) env cst : constr =
             let etyp = of_constr typ in
             let edef = of_constr def in
             let na = Namegen.named_hd env !evd etyp Anonymous in
-            let pred = mkLambda (Context.make_annot na ERelevance.relevant, etyp, substl (range (fun _ -> mkRel 1) order) (relation order evd env etyp)) in
+            let rel = Retyping.relevance_of_type env !evd etyp in
+            let pred = mkLambda (Context.make_annot na rel, etyp, substl (range (fun _ -> mkRel 1) order) (relation order evd env etyp)) in
             let res = translate order evd env edef in
             let uf_opaque_stmt = CoqConstants.eq env evd [| etyp; edef; fold|] in
             let evd', sort = Typing.sort_of env !evd etyp in
@@ -888,7 +891,8 @@ and rewrite_fixpoints order evdr env (depth : int) (fix : fixpoint) source targe
   let env_R =
     if List.exists (fun x -> List.mem x [`Fix]) debug_flag then begin
       let env_R = translate_env order evdr env in
-      let rc_order = rev_range (fun k -> Context.make_annot (Name (Id.of_string (Printf.sprintf "rel_%d" k))) ERelevance.relevant, None,
+      let rel = Retyping.relevance_of_type env !evdr typ in
+      let rc_order = rev_range (fun k -> Context.make_annot (Name (Id.of_string (Printf.sprintf "rel_%d" k))) rel, None,
                                          lift k (prime !evdr order k typ)) order in
       let env_R' = push_rel_context (List.map toDecl rc_order) env_R in
       debug [`Fix] "typ_R =" env_R' !evdr typ_R;
