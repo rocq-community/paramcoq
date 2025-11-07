@@ -459,7 +459,7 @@ and translate_constant order (evd : Evd.evar_map ref) env cst : constr =
    evd := evd';
    constr
   with Not_found ->
-      let cb = lookup_constant kn env in
+      let cb = Environ.lookup_constant kn env in
       Declarations.(match cb.const_body with
         | Def _ ->
             let (value, _, constraints) = constant_value_and_type env (kn,names) in
