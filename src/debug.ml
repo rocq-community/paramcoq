@@ -190,7 +190,7 @@ let debug_mutual_inductive_entry =
       match entry.mind_entry_universes with
       | Monomorphic_ind_entry | Template_ind_entry _ -> mt ()
       | Polymorphic_ind_entry ux ->
-         UVars.pr_universe_context Sorts.QVar.raw_pr UnivNames.pr_level_with_global_universes ux
+         UVars.UContext.pr Sorts.QVar.raw_pr UnivNames.pr_level_with_global_universes ux
     in
     let mind_entry_cumul_pp = bool (Option.has_some entry.mind_entry_variance) in
     let mind_entry_private_pp =
