@@ -196,6 +196,16 @@ let realizer_command ~opaque_access arity name var real =
 let rec list_continuation final f l _ = match l with [] -> final ()
    | hd::tl -> f (list_continuation final f tl) hd
 
+(* HACK does not respect synterp phase!!! *)
+let start_module export id args res =
+  let mp, args, sign = Declaremods.Synterp.start_module export id args res in
+  Declaremods.Interp.start_module export id args sign
+
+(* HACK!!! *)
+let end_module () =
+  let _mp = Declaremods.Synterp.end_module () in
+  Declaremods.Interp.end_module ()
+
 let rec translate_module_command ~opaque_access ?name arity r  =
   check_nothing_ongoing ();
   let qid = r in
@@ -226,11 +236,11 @@ and declare_module ~opaque_access ?(continuation = ignore) ?name arity mp mb  =
      let id_R = match name with Some id -> id | None -> translate_id arity id in
      debug_string [`Module] (Printf.sprintf "start module: '%s' (translating '%s')."
        (Names.Id.to_string id_R) (Names.Id.to_string id));
-     let _mp_R = Declaremods.start_module None id_R [] (Declaremods.Check []) in
+     let _mp_R = start_module None id_R [] (Declaremods.Check []) in
      list_continuation
      (fun _ ->
        debug_string [`Module] (Printf.sprintf "end module: '%s'." (Names.Id.to_string id_R));
-       ignore (Declaremods.end_module ()); continuation ())
+       ignore (end_module ()); continuation ())
      (fun continuation -> function
      | (lab, SFBconst cb) when (match cb.const_body with OpaqueDef _ -> false | Undef _ -> true | _ -> false) ->
        let cst = Mod_subst.constant_of_delta_kn (Mod_declarations.mod_delta mb) (Names.KerName.make mp lab) in
