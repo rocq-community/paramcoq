@@ -463,7 +463,7 @@ and translate_constant order (evd : Evd.evar_map ref) env cst : constr =
       Declarations.(match cb.const_body with
         | Def _ ->
             let (value, _, constraints) = constant_value_and_type env (kn,names) in
-            let evd' = Evd.add_constraints !evd constraints in
+            let evd' = Evd.add_poly_constraints QGraph.Internal !evd constraints in
             evd := evd';
             translate order evd env (of_constr (Option.get value))
         | OpaqueDef op ->
@@ -1130,12 +1130,12 @@ let fix_template_params order evdr env temp b params =
     match Univ.Level.var_index u0 with
     | None ->
       (* not template, this is technically allowed but dubious *)
-      Univ.Constraints.add (u0, cst, v) accu
+      Univ.UnivConstraints.add (u0, cst, v) accu
     | Some u0 -> match Int.Map.find_opt u0 umap with
       | None -> assert false (* unbound template level *)
       | Some (ur, repl) ->
-        let accu = Univ.Constraints.add (ur, cst, v) accu in
-        let fold accu u = Univ.Constraints.add (u, cst, v) accu in
+        let accu = Univ.UnivConstraints.add (ur, cst, v) accu in
+        let fold accu u = Univ.UnivConstraints.add (u, cst, v) accu in
         List.fold_left fold accu repl
   in
   let uctx = UVars.AbstractContext.repr temp.template_context in
@@ -1143,7 +1143,7 @@ let fix_template_params order evdr env temp b params =
   let qvars, univs = UVars.Instance.to_array univs in
   let cstrs = UVars.UContext.constraints uctx in
   let univs = Array.concat @@ Array.map_to_list map_univs univs in
-  let cstrs = Univ.Constraints.fold fold_cstrs cstrs Univ.Constraints.empty in
+  let cstrs = PConstraints.fold ((fun _ csts -> csts), fold_cstrs) cstrs PConstraints.empty in
   let unames = { UVars.quals = Array.make (Array.length qvars) Anonymous; UVars.univs = Array.make (Array.length univs) Anonymous } in
   let uctx = UVars.UContext.make unames (UVars.Instance.of_array (qvars,univs), cstrs) in
   let default_univs =
@@ -1171,7 +1171,7 @@ let rec translate_mind_body name order evdr env kn b inst =
         in
         let r = ERelevance.make ind.mind_relevance in
         let env = push_rel (toDecl (mkannot (Names.Name typename) r, None, (of_constr full_arity))) env in
-        let env = Environ.add_constraints cst env in
+        let env = Environ.add_constraints QGraph.Internal cst env in
         env
       ) env (Array.to_list b.mind_packets)
     in

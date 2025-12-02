@@ -114,7 +114,7 @@ let declare_inductive ~opaque_access name ?(continuation = default_continuation)
   debug_evar_map [`Inductive] "evar_map inductive " env !evd;
   let size = Declarations.(Array.length mut_body.mind_packets) in
   let mut_ind_R = DeclareInd.declare_mutual_inductive_with_eliminations translation_entry
-                  (Monomorphic_entry Univ.ContextSet.empty, UnivNames.empty_binders) [] in
+                  (Monomorphic_entry PConstraints.ContextSet.empty, UnivNames.empty_binders) [] in
   for k = 0 to size-1 do
     Relations.declare_inductive_relation arity (mut_ind, k) (mut_ind_R, k)
   done;
@@ -255,7 +255,7 @@ and declare_module ~opaque_access ?(continuation = ignore) ?name arity mp mb  =
        let env = Global.env () in
        let evd = Evd.from_env env in
        let evd, ucst =
-          Evd.(with_sort_context_set univ_rigid evd (UnivGen.fresh_constant_instance env cst))
+          Evd.(with_sort_context_set univ_rigid QGraph.Rigid evd (UnivGen.fresh_constant_instance env cst))
        in
        let evdr = ref evd in
        ignore(declare_realizer ~opaque_access ~continuation arity evdr env None (mkConstU (fst ucst, EInstance.make (snd ucst))))
@@ -274,7 +274,7 @@ and declare_module ~opaque_access ?(continuation = ignore) ?name arity mp mb  =
        let env = Global.env () in
        let evd = Evd.from_env env in
        let evd, ucst =
-          Evd.(with_sort_context_set univ_rigid evd (UnivGen.fresh_constant_instance env cst))
+          Evd.(with_sort_context_set univ_rigid QGraph.Rigid evd (UnivGen.fresh_constant_instance env cst))
        in
        let c = mkConstU (fst ucst, EInstance.make (snd ucst)) in
        let evdr = ref evd in
@@ -298,7 +298,7 @@ and declare_module ~opaque_access ?(continuation = ignore) ?name arity mp mb  =
          continuation ()
        else begin
          let evd, pind =
-            Evd.(with_sort_context_set univ_rigid !evdr (UnivGen.fresh_inductive_instance env ind))
+            Evd.(with_sort_context_set univ_rigid QGraph.Rigid !evdr (UnivGen.fresh_inductive_instance env ind))
          in
          evdr := evd;
          debug_string [`Module] (Printf.sprintf "inductive field: '%s'." (Names.Label.to_string lab));
@@ -367,7 +367,7 @@ let command_constant ~opaque_access ?(continuation = default_continuation) ~full
   let scope = Locality.(Global ImportDefaultBehavior) in
   let kind = Decls.(IsDefinition Definition) in
   let evd, pconst =
-    Evd.(with_sort_context_set univ_rigid evd (UnivGen.fresh_constant_instance env constant))
+    Evd.(with_sort_context_set univ_rigid QGraph.Static evd (UnivGen.fresh_constant_instance env constant))
   in
   let constr = mkConstU (fst pconst, EInstance.make @@ snd pconst) in
   declare_abstraction ~opaque_access ~continuation ~opaque ~poly ~scope ~kind
@@ -377,7 +377,7 @@ let command_inductive ~opaque_access ?(continuation = default_continuation) ~ful
   let env = Global.env () in
   let evd = Evd.from_env env in
   let evd, pind =
-    Evd.(with_sort_context_set univ_rigid evd (UnivGen.fresh_inductive_instance env inductive))
+    Evd.(with_sort_context_set univ_rigid QGraph.Static evd (UnivGen.fresh_inductive_instance env inductive))
   in
   let name = match names with
       | None ->
