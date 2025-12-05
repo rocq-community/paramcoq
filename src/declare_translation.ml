@@ -114,7 +114,7 @@ let declare_inductive ~opaque_access name ?(continuation = default_continuation)
   debug_evar_map [`Inductive] "evar_map inductive " env !evd;
   let size = Declarations.(Array.length mut_body.mind_packets) in
   let mut_ind_R = DeclareInd.declare_mutual_inductive_with_eliminations translation_entry
-                  (Monomorphic_entry PConstraints.ContextSet.empty, UnivNames.empty_binders) [] in
+                  (Monomorphic_entry Univ.ContextSet.empty, UnivNames.empty_binders) [] in
   for k = 0 to size-1 do
     Relations.declare_inductive_relation arity (mut_ind, k) (mut_ind_R, k)
   done;
