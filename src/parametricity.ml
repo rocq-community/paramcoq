@@ -1171,7 +1171,8 @@ let rec translate_mind_body name order evdr env kn b inst =
         in
         let r = ERelevance.make ind.mind_relevance in
         let env = push_rel (toDecl (mkannot (Names.Name typename) r, None, (of_constr full_arity))) env in
-        let env = Environ.add_constraints QGraph.Internal cst env in
+        let env = Environ.push_context_set (Univ.Level.Set.empty, snd cst) env in
+        let env = Environ.push_qualities QGraph.Internal (Sorts.QVar.Set.empty, fst cst) env in
         env
       ) env (Array.to_list b.mind_packets)
     in
