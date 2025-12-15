@@ -165,7 +165,7 @@ let declare_realizer ~opaque_access ?(continuation = default_continuation) ?kind
       (sigma, real))
   in
   let scope = Locality.(Global ImportDefaultBehavior) in
-  let poly = true in
+  let poly = PolyFlags.of_univ_poly true in
   let kind = Decls.(IsDefinition Definition) in
   let name = match name with Some x -> x | _ ->
      let name_str = (match EConstr.kind !evd var with
@@ -264,7 +264,7 @@ and declare_module ~opaque_access ?(continuation = ignore) ?name arity mp mb  =
        let opaque =
          match cb.const_body with OpaqueDef _ -> true | _ -> false
        in
-       let poly = Declareops.constant_is_polymorphic cb in
+       let poly = PolyFlags.of_univ_poly (Declareops.constant_is_polymorphic cb) in
        let scope = Locality.(Global ImportDefaultBehavior) in
        let kind = Decls.(IsDefinition Definition) in
        let cst = Mod_subst.constant_of_delta_kn (Mod_declarations.mod_delta mb) (Names.KerName.make mp lab) in
@@ -357,6 +357,7 @@ let command_constant ~opaque_access ?(continuation = default_continuation) ~full
     Declareops.constant_is_polymorphic cb,
     (match cb.const_body with Def _ -> false | _ -> true)
   in
+  let poly = PolyFlags.of_univ_poly poly in
   let name = match names with
       | None -> Names.Id.of_string
                 @@ translateFullName ~fullname arity
@@ -465,6 +466,7 @@ let translate_command ~opaque_access arity c name =
                                         | _ -> true)
     | None -> false, false
   in
+  let poly = PolyFlags.of_univ_poly poly in
   let scope = Locality.(Global ImportDefaultBehavior) in
   let kind = Decls.(IsDefinition Definition) in
   let _ : Declare.Proof.t option = declare_abstraction ~opaque_access ~opaque ~poly ~scope ~kind arity (ref evd) env c name in

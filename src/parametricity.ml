@@ -1204,7 +1204,7 @@ let rec translate_mind_body name order evdr env kn b inst =
       | Some (_, _, (uctx, default_univs)) -> Template_ind_entry { uctx; default_univs }
       end
     | Polymorphic _ ->
-      let uctx, _ = (Evd.univ_entry ~poly:true !evdr) in
+      let uctx, _ = (Evd.univ_entry ~poly:(PolyFlags.of_univ_poly true) !evdr) in
       match uctx with Polymorphic_entry uctx -> Polymorphic_ind_entry uctx | _ -> assert false
   in
   let mind_entry_inds_R = match template_univs with
