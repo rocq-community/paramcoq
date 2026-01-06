@@ -338,7 +338,7 @@ let translateFullName ~fullname arity (kername : Names.KerName.t) : string =
     (translate_string arity
      @@ Names.Label.to_string
      @@ Names.KerName.label
-     @@ kername)in 
+     @@ kername)in
   let pstr =
     (Names.ModPath.to_string
      @@ Names.KerName.modpath
