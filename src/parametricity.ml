@@ -463,7 +463,7 @@ and translate_constant order (evd : Evd.evar_map ref) env cst : constr =
       Declarations.(match cb.const_body with
         | Def _ ->
             let (value, _, constraints) = constant_value_and_type env (kn,names) in
-            let evd' = Evd.add_poly_constraints QGraph.Internal !evd constraints in
+            let evd' = Evd.add_poly_constraints !evd constraints in
             evd := evd';
             translate order evd env (of_constr (Option.get value))
         | OpaqueDef op ->
@@ -1172,7 +1172,7 @@ let rec translate_mind_body name order evdr env kn b inst =
         let r = ERelevance.make ind.mind_relevance in
         let env = push_rel (toDecl (mkannot (Names.Name typename) r, None, (of_constr full_arity))) env in
         let env = Environ.push_context_set (Univ.Level.Set.empty, snd cst) env in
-        let env = Environ.push_qualities QGraph.Internal (Sorts.QVar.Set.empty, fst cst) env in
+        let env = Environ.push_qualities ~rigid:false (Sorts.QVar.Set.empty, fst cst) env in
         env
       ) env (Array.to_list b.mind_packets)
     in
