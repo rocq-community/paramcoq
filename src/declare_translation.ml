@@ -338,7 +338,7 @@ let translateFullName ~fullname arity (kername : Names.KerName.t) : string =
     (translate_string arity
      @@ Names.Label.to_string
      @@ Names.KerName.label
-     @@ kername)in 
+     @@ kername)in
   let pstr =
     (Names.ModPath.to_string
      @@ Names.KerName.modpath
@@ -417,9 +417,7 @@ let command_reference ~opaque_access ?(continuation = default_continuation) ?(fu
 
 let command_reference_recursive ~opaque_access ?(continuation = default_continuation) ?(fullname = false) arity gref =
   let gref= Globnames.canonical_gr gref in
-  (* Assumptions doesn't care about the universes *)
-  let c, _ = UnivGen.fresh_global_instance (Global.env()) gref in
-  let (direct, graph, _) = Assumptions.traverse opaque_access gref c in
+  let (direct, graph, _) = Assumptions.traverse opaque_access [gref] in
   let inductive_of_constructor ref =
     let open Globnames in
     let ref= Globnames.canonical_gr ref in
