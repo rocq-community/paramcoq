@@ -107,7 +107,7 @@ let debug_case_info flags ci =
     let nargs = String.concat ";" (List.map string_of_int (Array.to_list ci.ci_cstr_nargs)) in
     let pp_info x =
       let string_of_style = match x.style with
-        LetStyle -> "LetStyle" | IfStyle -> "IfStyle" | LetPatternStyle -> "LetPatternStyle" | MatchStyle -> "MatchStyle" | RegularStyle -> "RegularStyle"
+        LetStyle -> "LetStyle" | IfStyle -> "IfStyle" | LetPatternStyle -> "LetPatternStyle" | MatchStyle -> "MatchStyle"
       in
       Printf.sprintf "style = %s" string_of_style
     in
