@@ -35,7 +35,7 @@ install: [
   [make "-C" "test-suite" "examples"] {with-test}
 ]
 depends: [
-  "coq" {= "dev" }
+  "coq"
 ]
 
 tags: [
