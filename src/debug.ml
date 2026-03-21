@@ -37,6 +37,17 @@ let fromFromLocalEntry (l: Entries.local_entry): Constr.constr =
   | Entries.LocalAssumEntry c -> c
 *)
 
+type debug_flag = [
+| `Abstraction
+| `Cast
+| `Fix
+| `Inductive
+| `Module
+| `ProofIrrelevance
+| `Realizer
+| `Time
+| `Translate ]
+
 let all = [`ProofIrrelevance;
            `Abstraction;
            `Relation;
@@ -52,7 +63,7 @@ let all = [`ProofIrrelevance;
 let debug_flag = [`Time; `Fix; `Module; `Abstraction; `Realizer; `Translate; `Cast; `Inductive; `Module; `ProofIrrelevance]
 
 let debug_mode = ref false
-let set_debug_mode =
+let () =
    Goptions.declare_bool_option
     { Goptions.optdepr  = None;
       Goptions.optstage = Interp;

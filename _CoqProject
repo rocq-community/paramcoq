@@ -6,6 +6,10 @@ src/debug.ml
 src/parametricity.ml
 src/relations.ml
 src/declare_translation.ml
+src/debug.mli
+src/parametricity.mli
+src/relations.mli
+src/declare_translation.mli
 src/abstraction.mlg
 src/paramcoq.mlpack
 theories/Param.v
