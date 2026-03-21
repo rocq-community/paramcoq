@@ -20,6 +20,17 @@ open Debug
 
 [@@@ocaml.warning "-40"]
 
+let toDecl old : rel_declaration =
+  let (name,value,typ) = old in
+  match value with
+  | Some value -> Context.Rel.Declaration.LocalDef (name,value,typ)
+  | None -> Context.Rel.Declaration.LocalAssum (name,typ)
+
+let fromDecl (n: _ Context.Rel.Declaration.pt) =
+  match n with
+  | Context.Rel.Declaration.LocalDef (name,value,typ) -> (name,Some value,typ)
+  | Context.Rel.Declaration.LocalAssum (name,typ) -> (name,None,typ)
+
 let mkannot = Context.make_annot
 
 let error msg = CErrors.user_err msg
@@ -28,7 +39,6 @@ let new_evar_compat env evd uf_opaque_stmt =
   Evarutil.new_evar ~typeclass_candidate:false env evd uf_opaque_stmt
 
 module CoqConstants = struct
-  let msg = "parametricity: unable to fetch constants"
 
   let add_constraints evdref univ =
     let env = Global.env () in
@@ -63,10 +73,6 @@ module CoqConstants = struct
     let evd, t = Program.papp env !evdref Program.coq_eq_ind args in
     evdref := evd; t
 
-  let eq_refl env evdref args =
-    let evd, t = Program.papp env !evdref Program.coq_eq_refl args in
-    evdref := evd; t
-
   let transport env evdref args =
     let evd, t = Program.papp env !evdref Program.coq_eq_rect args in
     evdref := evd; t
@@ -78,17 +84,6 @@ module CoqConstants = struct
 end
 
 let default_arity = 2
-
-let hyps_from_rel_context env =
-  let rctx = rel_context env in
-  let rec aux acc depth = function
-      [] -> acc
-    | (_, None, _) :: tl -> aux (depth :: acc) (depth + 1) tl
-    | _ :: tl -> aux acc (depth + 1) tl
-  in
-  let nc =
-    (List.map fromDecl rctx) in
-  aux [] 1 nc
 
 let compose_prod_decls rel_context init =
  Context.Rel.fold_inside(fun (acc : constr) d ->
@@ -218,9 +213,6 @@ let fold_nat f x =
       aux (f n acc) n
   in aux x
 
-(* [first n l] returns the first [n] elements of [l]. *)
-let firsts n l = fst (List.chop n l)
-
 (* If [t] is well-defined in G, x1, ..., xn, [apply_head_variables t n] returns
  * (t x1 ... xn) *)
 let apply_head_variables t n =
@@ -229,33 +221,6 @@ let apply_head_variables t n =
 
 let apply_head_variables_ctxt t ctxt =
   mkApp (t, Context.Rel.instance mkRel 0 ctxt)
-
-(* Substitution in a signature. *)
-let substnl_rel_context subst n sign =
-  let rec aux n = function
-  | d::sign -> substnl_decl subst n d :: aux (n+1) sign
-  | [] -> []
-  in List.rev (aux n (List.rev sign))
-
-let substl_rel_context subst = substnl_rel_context subst 0
-
-(* If [c] is well-formed type in env [G], then [generalize G c] returns [forall G.c]. *)
-let generalize_env (env : Environ.env) (init : types) =
-  let l = rel_context env in
-  Context.Rel.fold_inside(fun x y -> mkProd_or_LetIn y x) l ~init
-
-(* If [c] is well-formed term in env [G], then [generalize G c] returns [fun G.c]. *)
-let abstract_env (env : Environ.env) (init : constr) =
-  let l = rel_context env in
-  Context.Rel.fold_inside(fun x y -> mkLambda_or_LetIn y x) l ~init
-
-let mkFreshInd env evd c =
-  let evd', res = Evd.fresh_inductive_instance env !evd c in
-  evd := evd'; EConstr.mkIndU res
-
-let mkFreshConstruct env evd c =
-  let evd', res = Evd.fresh_constructor_instance env !evd c in
-  evd := evd'; EConstr.mkConstructU res
 
 (* prodn n [xn:Tn;..;x1:T1;Gamma] b = (x1:T1)..(xn:Tn)b *)
 let prodn n env b =
@@ -1054,10 +1019,6 @@ open Entries
 open Declarations
 
 (* Translation of inductives. *)
-
-let get_arity t =
-  let decls, s = Term.decompose_prod_decls t in
-  decls
 
 (* Workaround to ensure that template universe levels are linear *)
 let fix_template_params order evdr env temp b params =

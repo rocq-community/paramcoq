@@ -19,17 +19,6 @@ let toCDecl old : Constr.rel_declaration =
   | Some value -> Context.Rel.Declaration.LocalDef (name,value,typ)
   | None -> Context.Rel.Declaration.LocalAssum (name,typ)
 
-let toDecl old : rel_declaration =
-  let (name,value,typ) = old in
-  match value with
-  | Some value -> Context.Rel.Declaration.LocalDef (name,value,typ)
-  | None -> Context.Rel.Declaration.LocalAssum (name,typ)
-
-let fromDecl (n: _ Context.Rel.Declaration.pt) =
-  match n with
-  | Context.Rel.Declaration.LocalDef (name,value,typ) -> (name,Some value,typ)
-  | Context.Rel.Declaration.LocalAssum (name,typ) -> (name,None,typ)
-
 (*
 let fromFromLocalEntry (l: Entries.local_entry): Constr.constr =
   match l with
@@ -39,13 +28,11 @@ let fromFromLocalEntry (l: Entries.local_entry): Constr.constr =
 
 type debug_flag = [
 | `Abstraction
-| `Cast
 | `Fix
 | `Inductive
 | `Module
 | `ProofIrrelevance
 | `Realizer
-| `Time
 | `Translate ]
 
 let all = [`ProofIrrelevance;
@@ -54,13 +41,11 @@ let all = [`ProofIrrelevance;
            `Translate;
            `Fix;
            `Case;
-           `GenericUnfolding;
-           `Unfolding;
            `Inductive;
            `Module;
-           `Realizer; `Opacity]
+           `Realizer]
 
-let debug_flag = [`Time; `Fix; `Module; `Abstraction; `Realizer; `Translate; `Cast; `Inductive; `Module; `ProofIrrelevance]
+let debug_flag = [`Fix; `Module; `Abstraction; `Realizer; `Translate; `Inductive; `Module; `ProofIrrelevance]
 
 let debug_mode = ref false
 let () =

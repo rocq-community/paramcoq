@@ -9,38 +9,16 @@
 (*                                                                        *)
 (**************************************************************************)
 
-val toDecl :
-  (Names.Name.t, EConstr.ERelevance.t) Context.pbinder_annot *
-  EConstr.constr option * EConstr.types -> EConstr.rel_declaration
-val fromDecl :
-  ('a, 'b, 'c) Context.Rel.Declaration.pt ->
-  (Names.Name.t, 'c) Context.pbinder_annot * 'a option * 'b
-
 type debug_flag = [
 | `Abstraction
-| `Cast
 | `Fix
 | `Inductive
 | `Module
 | `ProofIrrelevance
 | `Realizer
-| `Time
 | `Translate ]
 
-val all :
-  [> `Abstraction
-   | `Case
-   | `Fix
-   | `GenericUnfolding
-   | `Inductive
-   | `Module
-   | `Opacity
-   | `ProofIrrelevance
-   | `Realizer
-   | `Relation
-   | `Translate
-   | `Unfolding ]
-  list
+val all : [> debug_flag | `Case | `Relation ] list
 val debug_flag : [> debug_flag ] list
 val debug_mode : bool ref
 val debug_message : [> debug_flag ] list -> string -> Pp.t -> unit
