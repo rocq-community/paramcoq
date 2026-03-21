@@ -156,7 +156,12 @@ let declare_realizer ~opaque_access ?(continuation = default_continuation) ?kind
       let realtyp = Retyping.get_type_of env sigma term in
       debug [`Realizer] (Printf.sprintf "real in realdef (%d) =" !cpt) env sigma term;
       debug [`Realizer] (Printf.sprintf "realtyp in realdef (%d) =" !cpt) env sigma realtyp;
-      let sigma = Evarconv.unify_leq_delay env sigma realtyp typ_R in
+      let sigma =
+        try Evarconv.unify_leq_delay env sigma realtyp typ_R
+        with Evarconv.UnableToUnify (sigma, e) ->
+          let cj = { Environ.uj_val = term; uj_type = realtyp } in
+          Pretype_errors.error_actual_type env sigma cj typ_R e
+      in
       debug [`Realizer] (Printf.sprintf "real in realdef (%d), after =" !cpt) env sigma term;
       debug [`Realizer] (Printf.sprintf "realtyp in realdef (%d), after =" !cpt) env sigma realtyp;
       (sigma, term)
