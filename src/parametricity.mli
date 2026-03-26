@@ -20,10 +20,10 @@ val range : (int -> 'a) -> int -> 'a list
 module WithOpaqueAccess :
   functor (Access : sig val access : Global.indirect_accessor end) ->
     sig
-      val relation :
+      val translate_type :
         int ->
         Evd.evar_map ref -> Environ.env -> EConstr.constr -> EConstr.constr
-      val translate :
+      val translate_term :
         int ->
         Evd.evar_map ref -> Environ.env -> EConstr.constr -> EConstr.constr
       val translate_constant :

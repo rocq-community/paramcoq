@@ -969,9 +969,20 @@ and rewrite_cofixpoints order evdr env (depth : int) (fix : cofixpoint) source t
 open Entries
 open Declarations
 
+(* Wrappers *)
+
+let translate_type order evd env t =
+  let () = assert (List.is_empty @@ Environ.rel_context env) in
+  relation order evd env t
+
+let translate_term order evd env t =
+  let () = assert (List.is_empty @@ Environ.rel_context env) in
+  translate order evd env t
+
 (* Translation of constants *)
 
 let translate_constant order evd env (kn, u) cb =
+  let () = assert (List.is_empty @@ Environ.rel_context env) in
   let names = EInstance.kind !evd u in
   Declarations.(match cb.const_body with
     | Def _ ->
@@ -1114,6 +1125,7 @@ let fix_template_params order evdr env temp b params =
   umap, temp.template_concl, (uctx, default_univs), decls
 
 let rec translate_mind_body name order evdr env kn b inst =
+  let () = assert (List.is_empty @@ Environ.rel_context env) in
   (* XXX: What is going on here? This doesn't make sense after cumulativity *)
   (* let env = push_context b.mind_universes env in *)
   debug_string [`Inductive] "computing envs ...";

@@ -77,12 +77,12 @@ let declare_abstraction ~opaque_access ?(opaque = false) ?(continuation = defaul
   debug [`Abstraction] "declare_abstraction, b =" env !evdr b;
   let b = Retyping.get_type_of env !evdr a in
   let module P = WithOpaqueAccess(struct let access = opaque_access end) in
-  let b_R = P.relation arity evdr env b in
+  let b_R = P.translate_type arity evdr env b in
   let sub = range (fun k -> prime !evdr arity k a) arity in
   let b_R = EConstr.Vars.substl sub b_R in
   let a_R = fun evd ->
     let evdr = ref evd in
-    let a_R = P.translate arity evdr env a in
+    let a_R = P.translate_term arity evdr env a in
     debug [`Abstraction] "a_R = " env !evdr a_R;
     debug_evar_map Debug.all "abstraction, evar_map = " env !evdr;
     !evdr, a_R
@@ -120,7 +120,7 @@ let declare_constant ~opaque_access ?(continuation = default_continuation) ~scop
   debug [`Abstraction] "declare_abstraction, b =" env !evdr b;
   let b = Retyping.get_type_of env !evdr a in
   let module P = WithOpaqueAccess(struct let access = opaque_access end) in
-  let b_R = P.relation arity evdr env b in
+  let b_R = P.translate_type arity evdr env b in
   let sub = range (fun k -> prime !evdr arity k a) arity in
   let b_R = EConstr.Vars.substl sub b_R in
   let a_R = fun evd ->
@@ -186,7 +186,7 @@ let declare_realizer ~opaque_access ?(continuation = default_continuation) ?kind
   let evd', typ = Typing.type_of env !evd var in
   evd := evd';
   let module P = Parametricity.WithOpaqueAccess(struct let access = opaque_access end) in
-  let typ_R = P.relation arity evd env typ in
+  let typ_R = P.translate_type arity evd env typ in
   let sub = range (fun _ -> var) arity in
   let typ_R = Vars.substl sub typ_R in
   let cpt = ref 0 in
