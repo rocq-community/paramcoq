@@ -26,6 +26,13 @@ module WithOpaqueAccess :
       val translate :
         int ->
         Evd.evar_map ref -> Environ.env -> EConstr.constr -> EConstr.constr
+      val translate_constant :
+        int ->
+        Evd.evar_map ref ->
+        Environ.env ->
+        Names.Constant.t EConstr.puniverses ->
+        (Opaqueproof.opaque, 'a) Declarations.pconstant_body ->
+        Evd.econstr
       val translate_mind_body :
         Names.Id.t ->
         int ->

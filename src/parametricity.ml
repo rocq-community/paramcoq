@@ -409,57 +409,13 @@ and translate order evd env (t : constr) : constr =
 
 and translate_constant order (evd : Evd.evar_map ref) env cst : constr =
   let kn, names_k = cst in
-  let names = EInstance.kind !evd names_k in
   try
    let evd', constr = fresh_global ~rigid:Evd.univ_rigid ~names:names_k env !evd (Relations.get_constant order kn) in
    evd := evd';
    constr
   with Not_found ->
-      let cb = Environ.lookup_constant kn env in
-      Declarations.(match cb.const_body with
-        | Def _ ->
-            let (value, _, constraints) = constant_value_and_type env (kn,names) in
-            let evd' = Evd.add_poly_constraints !evd constraints in
-            evd := evd';
-            translate order evd env (of_constr (Option.get value))
-        | OpaqueDef op ->
-            let typ = Typeops.type_of_constant_in env (kn,names) in
-            (* See Coq's commit dc60b8c8934ba6d0f107dc1d9368f1172bd6f945 *)
-            (* let cte_constraints = Declareops.constraints_of_constant table cb in *)
-            (* let cte_constraints = Univ.subst_instance_constraints u cte_constraints in *)
-            (* let evd' = Evd.add_constraints !evd cte_constraints in *)
-            (* evd := evd'; *)
-            let fold = mkConstU cst in
-            let (def, _) = Global.force_proof Access.access op in
-            let def = CVars.subst_instance_constr names def in
-            let etyp = of_constr typ in
-            let edef = of_constr def in
-            let na = Namegen.named_hd env !evd etyp Anonymous in
-            let rel = Retyping.relevance_of_type env !evd etyp in
-            let pred = mkLambda (Context.make_annot na rel, etyp, substl (range (fun _ -> mkRel 1) order) (relation order evd env etyp)) in
-            let res = translate order evd env edef in
-            let uf_opaque_stmt = CoqConstants.eq env evd [| etyp; edef; fold|] in
-            let evd', sort = Typing.sort_of env !evd etyp in
-            evd := evd';
-            let proof_opaque =
-              try
-                if Sorts.is_prop (ESorts.kind !evd sort) then
-                  (debug [`ProofIrrelevance] "def =" env !evd edef;
-                  debug [`ProofIrrelevance] "fold =" env !evd fold;
-                  CoqConstants.proof_irrelevance env evd [| etyp; edef; fold |])
-                else
-                  raise Not_found
-              with e ->
-                debug_string [`ProofIrrelevance] (Printexc.to_string e);
-                let evd_, hole = new_evar_compat Environ.empty_env !evd uf_opaque_stmt in evd := evd_;
-                CoqConstants.add_constraints evd (mkSort sort);
-                 hole
-            in
-            CoqConstants.transport env evd [| etyp; edef; pred; res; fold; proof_opaque |]
-        | _ ->
-            error
-              (Pp.str (Printf.sprintf "The constant '%s' has no registered translation."
-    (KerName.to_string (Constant.user (fst cst))))))
+    error
+      (Pp.str (Printf.sprintf "The constant '%s' has no registered translation." (KerName.to_string (Constant.user (fst cst)))))
 
 and translate_rel_context order evd env rc =
   let _, ll = Context.Rel.fold_outside (fun decl (env, acc) ->
@@ -1012,6 +968,54 @@ and rewrite_cofixpoints order evdr env (depth : int) (fix : cofixpoint) source t
 
 open Entries
 open Declarations
+
+(* Translation of constants *)
+
+let translate_constant order evd env (kn, u) cb =
+  let names = EInstance.kind !evd u in
+  Declarations.(match cb.const_body with
+    | Def _ ->
+        let (value, _, constraints) = constant_value_and_type env (kn,names) in
+        let evd' = Evd.add_poly_constraints !evd constraints in
+        evd := evd';
+        translate order evd env (of_constr (Option.get value))
+    | OpaqueDef op ->
+        let typ = Typeops.type_of_constant_in env (kn,names) in
+        (* See Coq's commit dc60b8c8934ba6d0f107dc1d9368f1172bd6f945 *)
+        (* let cte_constraints = Declareops.constraints_of_constant table cb in *)
+        (* let cte_constraints = Univ.subst_instance_constraints u cte_constraints in *)
+        (* let evd' = Evd.add_constraints !evd cte_constraints in *)
+        (* evd := evd'; *)
+        let fold = mkConstU (kn, u) in
+        let (def, _) = Global.force_proof Access.access op in
+        let def = CVars.subst_instance_constr names def in
+        let etyp = of_constr typ in
+        let edef = of_constr def in
+        let na = Namegen.named_hd env !evd etyp Anonymous in
+        let rel = Retyping.relevance_of_type env !evd etyp in
+        let pred = mkLambda (Context.make_annot na rel, etyp, substl (range (fun _ -> mkRel 1) order) (relation order evd env etyp)) in
+        let res = translate order evd env edef in
+        let uf_opaque_stmt = CoqConstants.eq env evd [| etyp; edef; fold|] in
+        let evd', sort = Typing.sort_of env !evd etyp in
+        evd := evd';
+        let proof_opaque =
+          try
+            if Sorts.is_prop (ESorts.kind !evd sort) then
+              (debug [`ProofIrrelevance] "def =" env !evd edef;
+              debug [`ProofIrrelevance] "fold =" env !evd fold;
+              CoqConstants.proof_irrelevance env evd [| etyp; edef; fold |])
+            else
+              raise Not_found
+          with e ->
+            debug_string [`ProofIrrelevance] (Printexc.to_string e);
+            let evd_, hole = new_evar_compat Environ.empty_env !evd uf_opaque_stmt in evd := evd_;
+            CoqConstants.add_constraints evd (mkSort sort);
+              hole
+        in
+        CoqConstants.transport env evd [| etyp; edef; pred; res; fold; proof_opaque |]
+    | _ ->
+        error
+          (Pp.str (Printf.sprintf "The constant '%s' cannot be translated because it has no body." (KerName.to_string (Constant.user kn)))))
 
 (* Translation of inductives. *)
 
