@@ -82,12 +82,6 @@ let compose_prod_decls rel_context init =
       | RelDecl.LocalAssum (x, typ) -> mkProd (x, typ, acc)
       | RelDecl.LocalDef (x, def, typ) -> mkLetIn (x, def, typ, acc)) ~init rel_context
 
-let compose_lambda_decls rel_context init =
- Context.Rel.fold_inside(fun (acc : constr) d ->
-  match d with
-  | RelDecl.LocalAssum (x, typ) -> mkLambda (x, typ, acc)
-  | RelDecl.LocalDef (x, def, typ) -> mkLetIn (x, def, typ, acc)) ~init rel_context
-
 let decompose_prod_n_decls_by_prod sigma n =
   if n < 0 then
     failwith "decompose_prod_n_decls_by_prod: integer parameter must be positive";
@@ -347,20 +341,14 @@ and translate order evd env (t : constr) : constr =
         mkCast (c_R, k, t_R)
 
     | Lambda (x, a, m) ->
-        let lams = range (fun k ->
-          (Context.map_annot (prime_name order k) x, lift k (prime !evd order k a))) order
-        in
-        let x_R = Context.map_annot (translate_name order) x in
-        let a_R = relation order evd env a in
-        let env = push_rel (RelDecl.LocalAssum (x, a)) env in
-        compose_lam lams (mkLambda (x_R, a_R, translate order evd env m))
+      let lam_R = translate_decl order evd env (RelDecl.LocalAssum (x, a)) in
+      let env = push_rel (RelDecl.LocalAssum (x, a)) env in
+      it_mkLambda_or_LetIn (translate order evd env m) lam_R
 
     | LetIn (x, b, t, c) ->
-        fold_nat (fun k acc ->
-           mkLetIn (Context.map_annot (prime_name order k) x, lift k (prime !evd order k b), lift k (prime !evd order k t), acc))
-           (mkLetIn (Context.map_annot (translate_name order) x, lift order (translate order evd env b), relation order evd env t,
-            let env = push_rel (RelDecl.LocalDef (x, b, t)) env in
-            translate order evd env c)) order
+      let let_R = translate_decl order evd env (RelDecl.LocalDef (x, b, t)) in
+      let env = push_rel (RelDecl.LocalDef (x, b, t)) env in
+      it_mkLambda_or_LetIn (translate order evd env c) let_R
 
     | Const c ->
         translate_constant order evd env c
@@ -391,8 +379,8 @@ and translate order evd env (t : constr) : constr =
         debug_string [`Case] "substitution :"; List.iter (debug [`Case] "" Environ.empty_env !evd) sub;
         let t_R = substl sub t_R in
         debug [`Case] "t_R" Environ.empty_env !evd t_R;
-        let lams_R =  translate_rel_context order evd env lams in
-        let p_R = compose_lambda_decls lams_R t_R in
+        let lams_R = translate_rel_context order evd env lams in
+        let p_R = it_mkLambda_or_LetIn t_R lams_R in
         let c_R = translate order evd env c in
         let bl_R = Array.map (translate order evd env) bl in
         let tuple = (EConstr.contract_case env.env !evd (ci_R, (p_R,r), Constr.NoInvert, c_R, bl_R)) in
@@ -431,23 +419,24 @@ and translate_constant order (evd : Evd.evar_map ref) env cst : constr =
     error
       (Pp.str (Printf.sprintf "The constant '%s' has no registered translation." (KerName.to_string (Constant.user (fst cst)))))
 
+and translate_decl order evd env decl = match decl with
+| RelDecl.LocalAssum (na, t) ->
+  let lams = range (fun k -> RelDecl.LocalAssum (Context.map_annot (prime_name order k) na, lift k (prime !evd order k t))) order in
+  let na_R = Context.map_annot (translate_name order) na in
+  let t_R = relation order evd env t in
+  RelDecl.LocalAssum (na_R, t_R) :: lams
+| RelDecl.LocalDef (na, body, t) ->
+  let lets = range (fun k -> RelDecl.LocalDef (Context.map_annot (prime_name order k) na, lift k (prime !evd order k body), lift k (prime !evd order k t))) order in
+  let na_R = Context.map_annot (translate_name order) na in
+  let t_R = relation order evd env t in
+  let body_R = lift order (translate order evd env body) in
+  RelDecl.LocalDef (na_R, body_R, t_R) :: lets
+
 and translate_rel_context order evd env rc =
   let _, ll = Context.Rel.fold_outside (fun decl (env, acc) ->
-     let (x, def, typ) = (RelDecl.get_annot decl, RelDecl.get_value decl, RelDecl.get_type decl) in
-     let toDecl (na, body, typ) = match body with
-     | None -> RelDecl.LocalAssum (na, typ)
-     | Some body -> RelDecl.LocalDef (na, body, typ)
-     in
-     let x_R = Context.map_annot (translate_name order) x in
-     let def_R = Option.map (translate order evd env) def in
-     let typ_R = relation order evd env typ in
-     let l = range (fun k ->
-       toDecl (Context.map_annot (prime_name order k) x,
-        Option.map (fun x -> lift k (prime !evd order k x)) def,
-        lift k (prime !evd order k typ)) ) order
-     in
-     let env = push_rel decl env in
-     env, ((toDecl ((x_R, Option.map (lift order) def_R, typ_R))::l))::acc) ~init:(env, []) rc
+    let decl_R = translate_decl order evd env decl in
+    let env = push_rel decl env in
+    env, decl_R :: acc) ~init:(env, []) rc
   in
   List.flatten ll
 
@@ -560,7 +549,7 @@ and translate_cofix order evd env t =
     (* narg is the position of fixpoints in env *)
     let body_R = rewrite_cofixpoints order evd env_lams narg fix body theta bk bk_R body_R in
     let lams_R = translate_rel_context order evd env_rec lams in
-    let res = compose_lambda_decls lams_R body_R in
+    let res = it_mkLambda_or_LetIn body_R lams_R in
     if List.exists (fun x -> List.mem x [`Fix]) debug_flag then begin
       let env_R = translate_env order evd env_rec in
       debug [`Fix] "res = " env_R.env !evd res;
@@ -726,7 +715,7 @@ and translate_fix order evd env t =
         let env_lams = push_rel_context lams env in
         let typ_R = relation order evd env_lams typ in
         let p_R = substl sub typ_R in
-        let p_R = compose_lambda_decls lams_R p_R in
+        let p_R = it_mkLambda_or_LetIn p_R lams_R in
         debug [`Fix] "predicate_R = " Environ.empty_env !evd p_R;
         let bl_R =
           debug_string [`Fix] (Printf.sprintf "dest_rel = %d" (destRel !evd c));
@@ -763,7 +752,7 @@ and translate_fix order evd env t =
                let typ_R = relation order evd env_lams typ in
                let env = push_rel_context realdecls env in
                let b_R = traverse_cases env (depth + nrealdecls) fun_args typ typ_R b in
-               compose_lambda_decls realdecls_R b_R
+               it_mkLambda_or_LetIn b_R realdecls_R
             ) bl
           end
         in
@@ -777,7 +766,7 @@ and translate_fix order evd env t =
     let bk = liftn nfun_letins (narg + 1) bk in
     let bk_R = liftn (nfun_letins * (order + 1)) ((order + 1) * narg + order + 1) bk_R in
     let body_R = traverse_cases env_lams 0 args bk bk_R body in
-    let res = compose_lambda_decls lams_R body_R in
+    let res = it_mkLambda_or_LetIn body_R lams_R in
     if List.exists (fun x -> List.mem x [`Fix]) debug_flag then begin
       let env_R = translate_env order evd env_rec in
       debug [`Fix] "res = " env_R.env !evd res;
