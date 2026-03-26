@@ -47,8 +47,8 @@ Global Parametricity Tactic := ((destruct_reflexivity; fail)
                             || (destruct_reflexivity_with_nat_arg_pattern; fail)
                             ||  auto). 
 
-
-Require Import ProofIrrelevance. (* for opaque terms *)
+Axiom proof_irrelevance : forall (P:Prop) (p1 p2:P), p1 = p2.
+Register proof_irrelevance as core.proof_irrelevance. (* for opaque terms *)
 
 Set Allow StrictProp.  (* TODO: use SProp instead of ProofIrrelevance *)
 

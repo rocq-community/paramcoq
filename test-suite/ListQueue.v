@@ -1,6 +1,6 @@
 Require Import Parametricity.
 
-Require Import List.
+From Stdlib Require Import List.
 Import ListNotations.
 
 Definition bind_option {A B} (f : A -> option B) (x : option A) : 
@@ -20,10 +20,7 @@ Definition bind_option2 {A B C} (f : A -> B -> option C)
 Notation "'do' X , Y   <- A 'in' B" := (bind_option2 (fun X Y => B) A)
  (at level 200, X ident, Y ident, A at level 100, B at level 200).
 
-
-      
-Require Import List.
-
+From Stdlib Require Import List.
 
 Record Queue := {
   t :> Type;
