@@ -175,7 +175,7 @@ let declare_realizer ~opaque_access ?(continuation = default_continuation) ?kind
   let name = match name with Some x -> x | _ ->
      let name_str = (match EConstr.kind !evd var with
      | Var id -> Names.Id.to_string id
-     | Const (cst, _) -> Names.Label.to_string (Names.Constant.label cst)
+     | Const (cst, _) -> Names.Id.to_string (Names.Constant.label cst)
      | _ -> assert false)
      in
      let name_R = translate_string arity name_str in
@@ -227,7 +227,7 @@ and id_of_module_path mp =
  let open Names in
  let open ModPath in
  match mp with
-   | MPdot (_, lab) -> Label.to_id lab
+   | MPdot (_, lab) -> lab
    | MPfile dp -> List.hd (DirPath.repr dp)
    | MPbound id -> MBId.to_id id
 
@@ -252,7 +252,7 @@ and declare_module ~opaque_access ?(continuation = ignore) ?name arity mp mb  =
        if try ignore (Relations.get_constant arity cst); true with Not_found -> false then
          continuation ()
        else
-       debug_string [`Module] (Printf.sprintf "axiom field: '%s'." (Names.Label.to_string lab));
+       debug_string [`Module] (Printf.sprintf "axiom field: '%s'." (Names.Id.to_string lab));
        (* As we rely on globally declared constants we need to access the
           global env here; previously indeed there was a bug in the call to
           Pfedit.get_current_context [it worked because we had no proof
@@ -283,14 +283,14 @@ and declare_module ~opaque_access ?(continuation = ignore) ?name arity mp mb  =
        in
        let c = mkConstU (fst ucst, EInstance.make (snd ucst)) in
        let evdr = ref evd in
-       let lab_R = translate_id arity (Names.Label.to_id lab) in
+       let lab_R = translate_id arity lab in
        debug [`Module] "field : " env !evdr c;
        (try
         let evd, typ = Typing.type_of env !evdr c in
         evdr := evd;
         debug [`Module] "type :" env !evdr typ
        with e -> error (Pp.str  (Printexc.to_string e)));
-       debug_string [`Module] (Printf.sprintf "constant field: '%s'." (Names.Label.to_string lab));
+       debug_string [`Module] (Printf.sprintf "constant field: '%s'." (Names.Id.to_string lab));
        ignore(declare_abstraction ~opaque_access ~opaque ~continuation ~poly ~scope ~kind arity evdr env c lab_R)
 
      | (lab, SFBmind _) ->
@@ -306,10 +306,10 @@ and declare_module ~opaque_access ?(continuation = ignore) ?name arity mp mb  =
             Evd.(with_sort_context_set univ_rigid !evdr (UnivGen.fresh_inductive_instance env ind))
          in
          evdr := evd;
-         debug_string [`Module] (Printf.sprintf "inductive field: '%s'." (Names.Label.to_string lab));
+         debug_string [`Module] (Printf.sprintf "inductive field: '%s'." (Names.Id.to_string lab));
 	 let ind_name = Names.Id.of_string
           @@ translate_string arity
-          @@ Names.Label.to_string
+          @@ Names.Id.to_string
           @@ Names.MutInd.label
           @@ mut_ind
 	 in
@@ -323,7 +323,7 @@ and declare_module ~opaque_access ?(continuation = ignore) ?name arity mp mb  =
         declare_module ~opaque_access ~continuation arity (MPdot (mp, lab)) mb'
 
      | (lab, _) ->
-         Pp.(Flags.if_verbose msg_info (str (Printf.sprintf "Ignoring field '%s'." (Names.Label.to_string lab))));
+         Pp.(Flags.if_verbose msg_info (str (Printf.sprintf "Ignoring field '%s'." (Names.Id.to_string lab))));
           continuation ()
      ) fields ()
   | Struct _, _ -> error Pp.(str "Module " ++ (str (Names.ModPath.to_string mp))
@@ -341,7 +341,7 @@ let command_variable ?(continuation = default_continuation) arity variable names
 let translateFullName ~fullname arity (kername : Names.KerName.t) : string =
   let nstr =
     (translate_string arity
-     @@ Names.Label.to_string
+     @@ Names.Id.to_string
      @@ Names.KerName.label
      @@ kername)in
   let pstr =

@@ -78,7 +78,7 @@ module CoqConstants = struct
     evdref := evd; t
 
   let proof_irrelevance env evdref args =
-    let evd, t = Program.papp env !evdref (fun () -> Coqlib.lib_ref "core.proof_irrelevance") args in
+    let evd, t = Program.papp env !evdref (fun () -> Rocqlib.lib_ref "core.proof_irrelevance") args in
     evdref := evd; t
 
 end
