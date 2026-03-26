@@ -235,14 +235,39 @@ let push_rel_context ctx ctxR env =
     env = EConstr.push_rel_context ctx env.env;
     env_R = EConstr.push_rel_context ctxR env.env_R }
 
-let push_rec_types rdef rdefR env =
-  let push_rdef0 (lna, typarray) env =
-    let ctxt = Array.map2_i (fun i na t -> RelDecl.LocalAssum (na, lift i t)) lna typarray in
-    Array.fold_left (fun e assum -> EConstr.push_rel assum e) env ctxt
+let push_rec_types (lna, tl) tl_R env =
+  (* Like in Environ.push_rec_types *)
+  let renv =
+    let ctxt = Array.map2_i (fun i na t -> RelDecl.LocalAssum (na, lift i t)) lna tl in
+    Array.fold_left (fun e assum -> EConstr.push_rel assum e) env.env ctxt
   in
-  { env with
-    env = push_rdef0 rdef env.env;
-    env_R = env.env_R; (* FIXME *) }
+  let nfun = Array.length lna in
+  let order = Array.length (fst tl_R.(0)) in
+  let fold i accu (tl_k, tl_R) =
+    let fold k accu tl_i =
+      let na_i = Context.map_annot (prime_name order k) lna.(i) in
+      let tl_i = lift (k + i * (order + 1)) tl_i in
+      EConstr.push_rel (LocalAssum (na_i, tl_i)) accu
+    in
+    let accu = Array.fold_left_i fold accu tl_k in
+    let na_R = Context.map_annot (translate_name order) lna.(i) in
+    (* |G|, fix1_1 : T1_1, fix1_2 : T1_2, ... fixn_1 : Tn_1, fixn_2 : Tn_2 |- tl_R *)
+    let dummy = mkProp in
+    (* By typing we know tl_R only depends on one group of fixpoint [fixi_1, fixi_2],
+       so we set the rest to a dummy value. *)
+    let subst =
+      List.make ((nfun - i - 1) * order) dummy @
+      List.init order (fun k -> mkRel (k + 1)) @
+      List.make (i * order) dummy
+    in
+    let tl_R = substl subst tl_R in
+    (* |G|,
+        fix1_1 : T1_1, fix1_2 : T1_2, fix1_R : T1_R fix1_1 fix1_2, ...,
+        fixi_1 : Ti_1, fixi_2 : Ti_2 |- tl_R *)
+    EConstr.push_rel (LocalAssum (na_R, tl_R)) accu
+  in
+  let renv_R = Array.fold_left_i fold env.env_R tl_R in
+  { env with env = renv; env_R = renv_R; }
 
 (* use a functor to avoid having to thread this everywhere *)
 module WithOpaqueAccess (Access:sig val access : Global.indirect_accessor end) = struct
@@ -477,16 +502,20 @@ and translate_style x = x
 and translate_cofix order evd env t =
   let (index, (lna, tl, bl)) as fix = destCoFix !evd t in
   let nfun = Array.length lna in
-  let rec letfix name fix typ n k acc =
+  let tl_k =
+    let map t = Array.init order (fun k -> prime !evd order k t) in
+    Array.map map tl
+  in
+  let rec letfix name fix n k acc =
     if k = 0 then acc
     else
       let k = k-1 in
       let r = lna.(n).binder_relevance in
       let fix_k = lift (n*order + k) (prime !evd order k fix) in
-      let typ_k = lift (n*order + k) (prime !evd order k typ) in
+      let typ_k = lift (n*order + k) tl_k.(n).(k) in
       let acc = mkLetIn (Context.make_annot (Name (Id.of_string (Printf.sprintf "fix_%s_%d" name (k+1)))) r,
                            fix_k, typ_k, acc) in
-      letfix name fix typ n k acc
+      letfix name fix n k acc
   in
   let rec letfixs n acc =
     if n = 0 then acc
@@ -498,8 +527,7 @@ and translate_cofix order evd env t =
         | _ -> string_of_int n
       in
       let fix = mkCoFix (index, (lna, tl, bl)) in
-      let typ = tl.(n) in
-      let acc = letfix name fix typ n order acc in
+      let acc = letfix name fix n order acc in
       letfixs n acc
   in
   let nrealargs = Array.map (fun x -> Context.Rel.nhyps (fst (decompose_lambda_decls !evd x))) bl in
@@ -526,8 +554,9 @@ and translate_cofix order evd env t =
      compose_prod_decls (lift_rel_context (nfun * order) ft_R) (substl sub bk_R)) ftbk_R
   in
 
+  let fix_tl_R = Array.init nfun (fun n -> (tl_k.(n), tl_R.(n))) in
   (* env_rec is the environement under fixpoints. *)
-  let env_rec = push_rec_types (lna, tl) () env in (* FIXME *)
+  let env_rec = push_rec_types (lna, tl) fix_tl_R env in
   (* n : fix index *)
   let process_body n =
     let lams, body = decompose_lambda_decls !evd bl.(n) in
@@ -578,16 +607,20 @@ and translate_cofix order evd env t =
 and translate_fix order evd env t =
   let ((ri, i) as ln, (lna, tl, bl)) as fix = destFix !evd t in
   let nfun = Array.length lna in
-  let rec letfix name fix typ n k acc =
+  let tl_k =
+    let map t = Array.init order (fun k -> prime !evd order k t) in
+    Array.map map tl
+  in
+  let rec letfix name fix n k acc =
     if k = 0 then acc
     else
       let k = k-1 in
       let r = lna.(n).binder_relevance in
       let fix_k = lift (n*order + k) (prime !evd order k fix) in
-      let typ_k = lift (n*order + k) (prime !evd order k typ) in
+      let typ_k = lift (n*order + k) tl_k.(n).(k) in
       let acc = mkLetIn (Context.make_annot (Name (Id.of_string (Printf.sprintf "fix_%s_%d" name (k+1)))) r,
                            fix_k, typ_k, acc) in
-      letfix name fix typ n k acc
+      letfix name fix n k acc
   in
   let rec letfixs n acc =
     if n = 0 then acc
@@ -599,8 +632,7 @@ and translate_fix order evd env t =
         | _ -> string_of_int n
       in
       let fix = mkFix ((ri, n), (lna, tl, bl)) in
-      let typ = tl.(n) in
-      let acc = letfix name fix typ n order acc in
+      let acc = letfix name fix n order acc in
       letfixs n acc
   in
   let nrealargs = Array.map (fun x -> Context.Rel.nhyps (fst (decompose_lambda_decls !evd x))) bl in
@@ -628,8 +660,9 @@ and translate_fix order evd env t =
      in
      compose_prod_decls (lift_rel_context (nfun * order) ft_R) (substl sub bk_R)) ftbk_R
   in
+  let fix_tl_R = Array.init nfun (fun n -> (tl_k.(n), tl_R.(n))) in
   (* env_rec is the environement under fixpoints. *)
-  let env_rec = push_rec_types (lna, tl) () env in (* FIXME *)
+  let env_rec = push_rec_types (lna, tl) fix_tl_R env in
   (* n : fix index *)
   let process_body n =
     let lams, body = decompose_lambda_decls !evd bl.(n) in
