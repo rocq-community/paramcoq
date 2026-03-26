@@ -18,18 +18,9 @@ open EConstr
 open Vars
 open Debug
 
+module RelDecl = Context.Rel.Declaration
+
 [@@@ocaml.warning "-40"]
-
-let toDecl old : rel_declaration =
-  let (name,value,typ) = old in
-  match value with
-  | Some value -> Context.Rel.Declaration.LocalDef (name,value,typ)
-  | None -> Context.Rel.Declaration.LocalAssum (name,typ)
-
-let fromDecl (n: _ Context.Rel.Declaration.pt) =
-  match n with
-  | Context.Rel.Declaration.LocalDef (name,value,typ) -> (name,Some value,typ)
-  | Context.Rel.Declaration.LocalAssum (name,typ) -> (name,None,typ)
 
 let mkannot = Context.make_annot
 
@@ -87,15 +78,15 @@ let default_arity = 2
 
 let compose_prod_decls rel_context init =
  Context.Rel.fold_inside(fun (acc : constr) d ->
-      match fromDecl d with
-        (x, None, typ) -> mkProd (x, typ, acc)
-      | (x, Some def, typ) -> mkLetIn (x, def, typ, acc)) ~init rel_context
+      match d with
+      | RelDecl.LocalAssum (x, typ) -> mkProd (x, typ, acc)
+      | RelDecl.LocalDef (x, def, typ) -> mkLetIn (x, def, typ, acc)) ~init rel_context
 
 let compose_lambda_decls rel_context init =
  Context.Rel.fold_inside(fun (acc : constr) d ->
-  match fromDecl d with
-  (x, None, typ) -> mkLambda (x, typ, acc)
-         | (x, Some def, typ) -> mkLetIn (x, def, typ, acc)) ~init rel_context
+  match d with
+  | RelDecl.LocalAssum (x, typ) -> mkLambda (x, typ, acc)
+  | RelDecl.LocalDef (x, def, typ) -> mkLetIn (x, def, typ, acc)) ~init rel_context
 
 let decompose_prod_n_decls_by_prod sigma n =
   if n < 0 then
@@ -103,8 +94,8 @@ let decompose_prod_n_decls_by_prod sigma n =
   let rec prodec_rec l n c =
     if Int.equal n 0 then l,c
     else match kind sigma c with
-    | Prod (x,t,c)    -> prodec_rec (Context.Rel.add (toDecl (x,None, t)) l) (n-1) c
-    | LetIn (x,b,t,c) -> prodec_rec (Context.Rel.add (toDecl (x,Some b, t)) l) n c
+    | Prod (x,t,c)    -> prodec_rec (Context.Rel.add (RelDecl.LocalAssum (x, t)) l) (n-1) c
+    | LetIn (x,b,t,c) -> prodec_rec (Context.Rel.add (RelDecl.LocalDef (x, b, t)) l) n c
     | Cast (c,_,_)      -> prodec_rec l n c
     | _c -> failwith "decompose_prod_n_decls_by_prod: not enough assumptions"
   in
@@ -264,7 +255,7 @@ let rec relation order evd env (t : constr) : constr =
         (* |G|, x1, x2 |- [x1,x2] in |a| *)
         let a_R = liftn order (order + 1) a_R in
         (*|G|, f1, f2, x1, x2 |- [x1,x2] in |a| *)
-        let env = push_rel (toDecl (x, None, a)) env in
+        let env = push_rel (RelDecl.LocalAssum (x, a)) env in
         let b_R = relation order evd env b in
         debug_string [`Relation] (Printf.sprintf "b has cast : %b" (has_cast !evd b));
         debug_string [`Relation] (Printf.sprintf "b_R has cast : %b" (has_cast !evd b_R));
@@ -301,8 +292,8 @@ let rec relation order evd env (t : constr) : constr =
     let env_R = translate_env order evd env in
     let na = Namegen.named_hd env !evd t Anonymous in
     let rel = Retyping.relevance_of_type env !evd t in
-    let lams = range (fun k -> (Context.make_annot (prime_name order k na) rel, None, lift k (prime !evd order k t))) order in
-    let env_R = push_rel_context (List.map toDecl lams) env_R in
+    let lams = range (fun k -> RelDecl.LocalAssum (Context.make_annot (prime_name order k na) rel, lift k (prime !evd order k t))) order in
+    let env_R = push_rel_context lams env_R in
     debug_mode := true;
     debug [`Relation] "output =" env_R !evd res;
     debug_string [`Relation] (Printf.sprintf "output has cast : %b" (has_cast !evd res))
@@ -347,14 +338,14 @@ and translate order evd env (t : constr) : constr =
         in
         let x_R = Context.map_annot (translate_name order) x in
         let a_R = relation order evd env a in
-        let env = push_rel (toDecl (x, None, a)) env in
+        let env = push_rel (RelDecl.LocalAssum (x, a)) env in
         compose_lam lams (mkLambda (x_R, a_R, translate order evd env m))
 
     | LetIn (x, b, t, c) ->
         fold_nat (fun k acc ->
            mkLetIn (Context.map_annot (prime_name order k) x, lift k (prime !evd order k b), lift k (prime !evd order k t), acc))
            (mkLetIn (Context.map_annot (translate_name order) x, lift order (translate order evd env b), relation order evd env t,
-            let env = push_rel (toDecl (x, Some b, t)) env in
+            let env = push_rel (RelDecl.LocalDef (x, b, t)) env in
             translate order evd env c)) order
 
     | Const c ->
@@ -472,7 +463,11 @@ and translate_constant order (evd : Evd.evar_map ref) env cst : constr =
 
 and translate_rel_context order evd env rc =
   let _, ll = Context.Rel.fold_outside (fun decl (env, acc) ->
-     let (x, def, typ) = fromDecl decl in
+     let (x, def, typ) = (RelDecl.get_annot decl, RelDecl.get_value decl, RelDecl.get_type decl) in
+     let toDecl (na, body, typ) = match body with
+     | None -> RelDecl.LocalAssum (na, typ)
+     | Some body -> RelDecl.LocalDef (na, body, typ)
+     in
      let x_R = Context.map_annot (translate_name order) x in
      let def_R = Option.map (translate order evd env) def in
      let typ_R = relation order evd env typ in
@@ -857,9 +852,9 @@ and rewrite_fixpoints order evdr env (depth : int) (fix : fixpoint) source targe
     if List.exists (fun x -> List.mem x [`Fix]) debug_flag then begin
       let env_R = translate_env order evdr env in
       let rel = Retyping.relevance_of_type env !evdr typ in
-      let rc_order = rev_range (fun k -> Context.make_annot (Name (Id.of_string (Printf.sprintf "rel_%d" k))) rel, None,
-                                         lift k (prime !evdr order k typ)) order in
-      let env_R' = push_rel_context (List.map toDecl rc_order) env_R in
+      let rc_order = rev_range (fun k -> RelDecl.LocalAssum (Context.make_annot (Name (Id.of_string (Printf.sprintf "rel_%d" k))) rel,
+                                         lift k (prime !evdr order k typ))) order in
+      let env_R' = push_rel_context rc_order env_R in
       debug [`Fix] "typ_R =" env_R' !evdr typ_R;
       env_R
     end else env in
@@ -869,12 +864,12 @@ and rewrite_fixpoints order evdr env (depth : int) (fix : fixpoint) source targe
     let nfun = Array.length ri in
     let front, back = List.chop pos rc in
     let funs, back = List.chop nfun back in
-    let fixs = List.mapi (fun i -> function (name, None, typ) ->
-      (name, Some (mkFix ((ri, nfun - 1 - i), stuff)), typ) | _ -> assert false) funs in
+    let fixs = List.mapi (fun i -> function RelDecl.LocalAssum (name, typ) ->
+      RelDecl.LocalDef (name, (mkFix ((ri, nfun - 1 - i), stuff)), typ) | _ -> assert false) funs in
     front @ fixs @ back
   in
   let env_rc = rel_context env in
-  let env_rc = instantiate_fixpoint_in_rel_context (List.map fromDecl env_rc) in
+  let env_rc = instantiate_fixpoint_in_rel_context env_rc in
   let path = CoqConstants.eq env evdr [| typ; source; target|] in
   debug [`Fix] "path" env !evdr path;
   let gen_rc, new_vec, path = weaken_unused_free_rels env_rc !evdr path in
@@ -921,9 +916,9 @@ and weaken_unused_free_rels env_rc sigma term =
      | decl::tl when Int.Set.mem k vars ->
        let fv =
           match decl with
-             (_, None, typ) ->
+             RelDecl.LocalAssum (_, typ) ->
                Termops.free_rels sigma typ
-           | (_, Some def, typ) ->
+           | RelDecl.LocalDef (_, def, typ) ->
                Int.Set.union (Termops.free_rels sigma def) (Termops.free_rels sigma typ)
        in
        let vars = Int.Set.fold (fun x -> Int.Set.add (x + k)) fv vars in
@@ -940,7 +935,7 @@ and weaken_unused_free_rels env_rc sigma term =
        apply_substitution_rel_context k (List.tl sub) acc tl
    in
 
-   debug_rel_context [`Fix] "env_rv = " Environ.empty_env sigma (List.map toDecl env_rc);
+   debug_rel_context [`Fix] "env_rv = " Environ.empty_env sigma env_rc;
    let set = collect_free_vars 1 (Termops.free_rels sigma term) env_rc in
    let lst = Int.Set.fold (fun x acc -> x::acc) set [] in
    let lst = List.sort compare lst in
@@ -956,8 +951,8 @@ and weaken_unused_free_rels env_rc sigma term =
    let sub_lst = List.rev (gen_sub 0 1 (List.length env_rc) [] lst) in
    debug_string [`Fix] (Printf.sprintf "[%s]" (String.concat ";" (List.map string_of_int sub_lst)));
    let sub = List.map mkRel sub_lst in
-   let new_env_rc = apply_substitution_rel_context 1 sub [] (List.map toDecl env_rc) in
-   let new_vec = Context.Rel.instance_list mkRel 0 (List.map toDecl env_rc) in
+   let new_env_rc = apply_substitution_rel_context 1 sub [] env_rc in
+   let new_vec = Context.Rel.instance_list mkRel 0 env_rc in
    let new_vec = List.filter (fun x -> let v = destRel sigma x in Int.Set.mem v set) new_vec in
    let new_vec = Array.of_list new_vec in
    assert (Array.length new_vec == Context.Rel.nhyps new_env_rc);
@@ -970,9 +965,9 @@ and rewrite_cofixpoints order evdr env (depth : int) (fix : cofixpoint) source t
   let r = Retyping.relevance_of_type env !evdr typ in
   if List.exists (fun x -> List.mem x [`Fix]) debug_flag then begin
     let env_R = translate_env order evdr env in
-    let rc_order = rev_range (fun k -> mkannot (Name (Id.of_string (Printf.sprintf "rel_%d" k))) r, None,
-                         lift k (prime !evdr order k typ)) order in
-    let env_R = push_rel_context (List.map toDecl rc_order) env_R in
+    let rc_order = rev_range (fun k -> RelDecl.LocalAssum (mkannot (Name (Id.of_string (Printf.sprintf "rel_%d" k))) r,
+                         lift k (prime !evdr order k typ))) order in
+    let env_R = push_rel_context rc_order env_R in
     debug [`Fix] "typ_R =" env_R !evdr typ_R
   end;
   let instantiate_fixpoint_in_rel_context rc =
@@ -981,13 +976,13 @@ and rewrite_cofixpoints order evdr env (depth : int) (fix : cofixpoint) source t
     let nfun = Array.length lna in
     let front, back = List.chop pos rc in
     let funs, back = List.chop nfun back in
-    let fixs = List.mapi (fun i -> function (name, None, typ) ->
-      (name, Some (mkCoFix ((nfun - 1 - index), stuff)), typ) | _ -> assert false) funs in
+    let fixs = List.mapi (fun i -> function RelDecl.LocalAssum (name, typ) ->
+      RelDecl.LocalDef (name, (mkCoFix ((nfun - 1 - index), stuff)), typ) | _ -> assert false) funs in
     front @ fixs @ back
   in
   let env_rc = rel_context env in
-  let env_rc = instantiate_fixpoint_in_rel_context (List.map fromDecl env_rc) in
-  let gen_path = it_mkProd_or_LetIn (CoqConstants.eq env evdr [| typ; source; target|]) (List.map toDecl env_rc) in
+  let env_rc = instantiate_fixpoint_in_rel_context env_rc in
+  let gen_path = it_mkProd_or_LetIn (CoqConstants.eq env evdr [| typ; source; target|]) env_rc in
   debug [`Fix] "gen_path_type" env !evdr gen_path;
   let evd, hole = new_evar_compat Environ.empty_env !evdr gen_path in
   evdr := evd;
@@ -1004,7 +999,7 @@ and rewrite_cofixpoints order evdr env (depth : int) (fix : cofixpoint) source t
     let endpoint = lift 1 (prime evd order k target) in
     let path = mkApp (mkRel 1,
        Array.map (fun x -> lift 1 (prime evd order k x))
-        (Context.Rel.instance mkRel 0 (List.map toDecl env_rc)))
+        (Context.Rel.instance mkRel 0 env_rc))
     in
     let sort = Retyping.get_type_of env !evdr typ in
     CoqConstants.add_constraints evdr sort;
@@ -1131,7 +1126,7 @@ let rec translate_mind_body name order evdr env kn b inst =
            Inductive.constrained_type_of_inductive ((b, ind), inst)
         in
         let r = ERelevance.make ind.mind_relevance in
-        let env = push_rel (toDecl (mkannot (Names.Name typename) r, None, (of_constr full_arity))) env in
+        let env = push_rel (RelDecl.LocalAssum (mkannot (Names.Name typename) r, (of_constr full_arity))) env in
         let env = Environ.push_context_set (Univ.Level.Set.empty, snd cst) env in
         let env = Environ.push_qualities ~rigid:false (Sorts.QVar.Set.empty, fst cst) env in
         env

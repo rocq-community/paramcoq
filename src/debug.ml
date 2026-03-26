@@ -13,18 +13,7 @@ open Names
 open EConstr
 open Pp
 
-let toCDecl old : Constr.rel_declaration =
-  let (name,value,typ) = old in
-  match value with
-  | Some value -> Context.Rel.Declaration.LocalDef (name,value,typ)
-  | None -> Context.Rel.Declaration.LocalAssum (name,typ)
-
-(*
-let fromFromLocalEntry (l: Entries.local_entry): Constr.constr =
-  match l with
-  | Entries.LocalDefEntry c -> c
-  | Entries.LocalAssumEntry c -> c
-*)
+module RelDecl = Context.Rel.Declaration
 
 type debug_flag = [
 | `Abstraction
@@ -221,7 +210,7 @@ let debug_mutual_inductive_entry =
 
     let arities_params_env =
       let env_arities =
-        List.fold_left (fun acc (id, arity) -> Environ.push_rel (toCDecl (Context.make_annot (Name id) Sorts.Relevant, None, arity)) acc)
+        List.fold_left (fun acc (id, arity) -> Environ.push_rel (RelDecl.LocalAssum (Context.make_annot (Name id) Sorts.Relevant, arity)) acc)
                        Environ.empty_env (List.rev arities)
       in
       Environ.push_rel_context params env_arities
