@@ -70,13 +70,14 @@ let add_definition ~opaque ~hook ~poly ~scope ~kind ~tactic name env evd term ty
     Some lemma
   end
 
-let declare_abstraction ~opaque_access ?(opaque = false) ?(continuation = default_continuation) ~poly ~scope ~kind arity evdr env a name =
-  Debug.debug_evar_map Debug.all "declare_abstraction, evd  = " env !evdr;
-  debug [`Abstraction] "declare_abstraction, a =" env !evdr a;
-  let b = Retyping.get_type_of env !evdr a in
-  debug [`Abstraction] "declare_abstraction, b =" env !evdr b;
-  let b = Retyping.get_type_of env !evdr a in
+let declare_abstraction ~opaque_access ?(opaque = false) ?(continuation = default_continuation) ~poly ~scope ~kind arity evd env a name =
+  Debug.debug_evar_map Debug.all "declare_abstraction, evd  = " env evd;
+  debug [`Abstraction] "declare_abstraction, a =" env evd a;
+  let b = Retyping.get_type_of env evd a in
+  debug [`Abstraction] "declare_abstraction, b =" env evd b;
+  let b = Retyping.get_type_of env evd a in
   let module P = Parametricity in
+  let evdr = ref evd in
   let b_R = P.translate_type arity evdr env b in
   let sub = range (fun k -> prime !evdr arity k a) arity in
   let b_R = EConstr.Vars.substl sub b_R in
@@ -105,21 +106,21 @@ let declare_abstraction ~opaque_access ?(opaque = false) ?(continuation = defaul
   let tactic = Relations.get_parametricity_tactic () in
   add_definition ~tactic ~opaque ~poly ~scope ~kind ~hook name env evd a_R b_R
 
-let declare_constant ~opaque_access ?(continuation = default_continuation) ~scope ~kind arity evdr env cst cb name =
+let declare_constant ~opaque_access ?(continuation = default_continuation) ~scope ~kind arity evd env cst cb name =
   let opaque = match cb.Declarations.const_body with
   | Def _ -> false
   | OpaqueDef _ | Undef _ | Primitive _ | Symbol _ -> true
   in
   let poly = PolyFlags.of_univ_poly @@ Declareops.constant_is_polymorphic cb in
-  Debug.debug_evar_map Debug.all "declare_constant, evd  = " env !evdr;
-  let sigma, (_, u) = Evd.fresh_constant_instance ~rigid:Evd.univ_rigid env !evdr cst in
-  let () = evdr := sigma in
+  Debug.debug_evar_map Debug.all "declare_constant, evd  = " env evd;
+  let sigma, (_, u) = Evd.fresh_constant_instance ~rigid:Evd.univ_rigid env evd cst in
   let a = mkConstU (cst, u) in
-  debug [`Abstraction] "declare_abstraction, a =" env !evdr a;
-  let b = Retyping.get_type_of env !evdr a in
-  debug [`Abstraction] "declare_abstraction, b =" env !evdr b;
-  let b = Retyping.get_type_of env !evdr a in
+  debug [`Abstraction] "declare_abstraction, a =" env evd a;
+  let b = Retyping.get_type_of env evd a in
+  debug [`Abstraction] "declare_abstraction, b =" env evd b;
+  let b = Retyping.get_type_of env evd a in
   let module P = Parametricity in
+  let evdr = ref sigma in
   let b_R = P.translate_type arity evdr env b in
   let sub = range (fun k -> prime !evdr arity k a) arity in
   let b_R = EConstr.Vars.substl sub b_R in
@@ -147,6 +148,7 @@ let declare_constant ~opaque_access ?(continuation = default_continuation) ~scop
   add_definition ~tactic ~opaque ~poly ~scope ~kind ~hook name env evd a_R b_R
 
 let declare_inductive ~opaque_access name ?(continuation = default_continuation) arity evd env (((mut_ind, _) as ind, inst)) =
+  let evd = ref evd in
   let mut_body, _ = Inductive.lookup_mind_specif env ind in
   debug_string [`Inductive] "Translating mind body ...";
   let module P = Parametricity in
@@ -175,10 +177,10 @@ let translate_inductive_command arity c name =
     let ind_R = Globnames.destIndRef (Relations.get_inductive arity ind) in
     error (Pp.(str "The inductive " ++ Printer.pr_inductive env ind ++ str " already as the following registered translation " ++ Printer.pr_inductive env ind_R))
   with Not_found ->
-  let evd = ref sigma in
-  declare_inductive name arity evd env pind
+  declare_inductive name arity sigma env pind
 
 let declare_realizer ~opaque_access ?(continuation = default_continuation) ?kind ?real arity evd env name (var : constr)  =
+  let evd = ref evd in
   let gref = (match EConstr.kind !evd var with
      | Var id -> Names.GlobRef.VarRef id
      | Const (cst, _) -> Names.GlobRef.ConstRef cst
@@ -237,7 +239,7 @@ let realizer_command ~opaque_access arity name var real =
   let (sigma, var) = Constrintern.interp_open_constr env sigma var in
   RetrieveObl.check_evars env sigma;
   let real = fun sigma -> Constrintern.interp_open_constr env sigma real in
-  ignore(declare_realizer ~opaque_access arity (ref sigma) env name var ~real)
+  ignore(declare_realizer ~opaque_access arity sigma env name var ~real)
 
 let rec list_continuation final f l _ = match l with [] -> final ()
    | hd::tl -> f (list_continuation final f tl) hd
@@ -303,8 +305,7 @@ and declare_module ~opaque_access ?(continuation = ignore) ?name arity mp mb  =
        let evd, ucst =
           Evd.(with_sort_context_set univ_rigid evd (UnivGen.fresh_constant_instance env cst))
        in
-       let evdr = ref evd in
-       ignore(declare_realizer ~opaque_access ~continuation arity evdr env None (mkConstU (fst ucst, EInstance.make (snd ucst))))
+       ignore(declare_realizer ~opaque_access ~continuation arity evd env None (mkConstU (fst ucst, EInstance.make (snd ucst))))
 
      | (lab, SFBconst cb) ->
        let scope = Locality.(Global ImportDefaultBehavior) in
@@ -315,10 +316,9 @@ and declare_module ~opaque_access ?(continuation = ignore) ?name arity mp mb  =
        else
        let env = Global.env () in
        let evd = Evd.from_env env in
-       let evdr = ref evd in
        let lab_R = translate_id arity lab in
        debug_string [`Module] (Printf.sprintf "constant field: '%s'." (Names.Id.to_string lab));
-       ignore(declare_constant ~opaque_access ~continuation ~scope ~kind arity evdr env cst cb lab_R)
+       ignore(declare_constant ~opaque_access ~continuation ~scope ~kind arity evd env cst cb lab_R)
 
      | (lab, SFBmind _) ->
        let env = Global.env () in
@@ -340,7 +340,7 @@ and declare_module ~opaque_access ?(continuation = ignore) ?name arity mp mb  =
           @@ Names.MutInd.label
           @@ mut_ind
 	 in
-         declare_inductive ~opaque_access ind_name ~continuation arity evdr env pind
+         declare_inductive ~opaque_access ind_name ~continuation arity !evdr env pind
        end
      | (lab, SFBmodule mb') when
           match Mod_declarations.mod_type mb' with NoFunctor _ ->
@@ -393,7 +393,7 @@ let command_constant ~opaque_access ?(continuation = default_continuation) ~full
   in
   let scope = Locality.(Global ImportDefaultBehavior) in
   let kind = Decls.(IsDefinition Definition) in
-  declare_constant ~opaque_access ~continuation ~scope ~kind arity (ref evd) env constant cb name
+  declare_constant ~opaque_access ~continuation ~scope ~kind arity evd env constant cb name
 
 let command_inductive ~opaque_access ?(continuation = default_continuation) ~fullname arity inductive names =
   let env = Global.env () in
@@ -411,7 +411,7 @@ let command_inductive ~opaque_access ?(continuation = default_continuation) ~ful
 	  @@ pind
       | Some name -> name
   in
-  declare_inductive ~opaque_access name ~continuation arity (ref evd) env pind
+  declare_inductive ~opaque_access name ~continuation arity evd env pind
 
 let command_constructor ?(continuation = default_continuation) arity gref names =
   let open Pp in
@@ -488,5 +488,5 @@ let translate_command ~opaque_access arity c name =
   let poly = PolyFlags.of_univ_poly poly in
   let scope = Locality.(Global ImportDefaultBehavior) in
   let kind = Decls.(IsDefinition Definition) in
-  let _ : Declare.Proof.t option = declare_abstraction ~opaque_access ~opaque ~poly ~scope ~kind arity (ref evd) env c name in
+  let _ : Declare.Proof.t option = declare_abstraction ~opaque_access ~opaque ~poly ~scope ~kind arity evd env c name in
   ()
