@@ -1097,9 +1097,10 @@ let fix_template_params order evdr env temp b params =
         | Some u ->
           let u = Univ.Universe.make u in
           begin match bind_sort with
-            | Sorts.QSort (q,_) -> Sorts.qsort q u
-            | Type _ -> Sorts.sort_of_univ u
-            | SProp | Prop | Set -> assert false
+          | Sorts.VSort (q,_) -> Sorts.vsort q u
+          | GSort (q, _) -> Sorts.make (QGlobal q) u
+          | Type _ -> Sorts.sort_of_univ u
+          | SProp | Prop | Set -> assert false
           end
         | None -> bind_sort
       in
@@ -1177,7 +1178,7 @@ let rec translate_mind_body name order evdr env kn b inst =
         let r = ERelevance.make ind.mind_relevance in
         let env = EConstr.push_rel (RelDecl.LocalAssum (mkannot (Names.Name typename) r, (of_constr full_arity))) env in
         let env = Environ.push_context_set (Univ.Level.Set.empty, snd cst) env in
-        let env = Environ.push_qualities ~rigid:false (Sorts.QVar.Set.empty, fst cst) env in
+        let env = Environ.merge_elim_constraints ~rigid:false (fst cst) env in
         env
       ) env (Array.to_list b.mind_packets)
     in
@@ -1233,11 +1234,7 @@ let rec translate_mind_body name order evdr env kn b inst =
       in
       Univ.Universe.unrepr (List.map_append map u)
     in
-    let sort = match concl with
-    | (Type u) -> Sorts.sort_of_univ (map_univ u)
-    | QSort (q,u) -> Sorts.qsort q (map_univ u)
-    | SProp | Prop | Set -> concl
-    in
+    let sort = Sorts.(make (quality concl) (map_univ (univ_of_sort concl))) in
     let arity = Term.it_mkProd_or_LetIn (Constr.mkSort sort) decls in
     let entry = { entry with mind_entry_arity = arity } in
     [entry]
