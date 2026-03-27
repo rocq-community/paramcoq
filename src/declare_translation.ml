@@ -76,7 +76,7 @@ let declare_abstraction ~opaque_access ?(opaque = false) ?(continuation = defaul
   let b = Retyping.get_type_of env !evdr a in
   debug [`Abstraction] "declare_abstraction, b =" env !evdr b;
   let b = Retyping.get_type_of env !evdr a in
-  let module P = WithOpaqueAccess(struct let access = opaque_access end) in
+  let module P = Parametricity in
   let b_R = P.translate_type arity evdr env b in
   let sub = range (fun k -> prime !evdr arity k a) arity in
   let b_R = EConstr.Vars.substl sub b_R in
@@ -119,13 +119,13 @@ let declare_constant ~opaque_access ?(continuation = default_continuation) ~scop
   let b = Retyping.get_type_of env !evdr a in
   debug [`Abstraction] "declare_abstraction, b =" env !evdr b;
   let b = Retyping.get_type_of env !evdr a in
-  let module P = WithOpaqueAccess(struct let access = opaque_access end) in
+  let module P = Parametricity in
   let b_R = P.translate_type arity evdr env b in
   let sub = range (fun k -> prime !evdr arity k a) arity in
   let b_R = EConstr.Vars.substl sub b_R in
   let a_R = fun evd ->
     let evdr = ref evd in
-    let a_R = P.translate_constant arity evdr env (cst, u) cb in
+    let a_R = P.translate_constant ~accessor:opaque_access arity evdr env (cst, u) cb in
     debug [`Abstraction] "a_R = " env !evdr a_R;
     debug_evar_map Debug.all "abstraction, evar_map = " env !evdr;
     !evdr, a_R
@@ -149,7 +149,7 @@ let declare_constant ~opaque_access ?(continuation = default_continuation) ~scop
 let declare_inductive ~opaque_access name ?(continuation = default_continuation) arity evd env (((mut_ind, _) as ind, inst)) =
   let mut_body, _ = Inductive.lookup_mind_specif env ind in
   debug_string [`Inductive] "Translating mind body ...";
-  let module P = Parametricity.WithOpaqueAccess(struct let access = opaque_access end) in
+  let module P = Parametricity in
   let translation_entry = P.translate_mind_body name arity evd env mut_ind mut_body inst in
   debug_string [`Inductive] ("Translating mind body ... done.");
   debug_evar_map [`Inductive] "evar_map inductive " env !evd;
@@ -185,7 +185,7 @@ let declare_realizer ~opaque_access ?(continuation = default_continuation) ?kind
      | _ -> error (Pp.str "Realizer works only for variables and constants.")) in
   let evd', typ = Typing.type_of env !evd var in
   evd := evd';
-  let module P = Parametricity.WithOpaqueAccess(struct let access = opaque_access end) in
+  let module P = Parametricity in
   let typ_R = P.translate_type arity evd env typ in
   let sub = range (fun _ -> var) arity in
   let typ_R = Vars.substl sub typ_R in

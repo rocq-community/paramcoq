@@ -222,17 +222,14 @@ let compose_lam l b = lamn (List.length l) l b
 type penv = {
   env : Environ.env;
   env_R : Environ.env; (* [env] where the rel_context is the translated one *)
-  accessor : Global.indirect_accessor;
-} [@@ocaml.warning "-69"]
+}
 
 let push_rel decl declR env =
-  { env with
-    env = EConstr.push_rel decl env.env;
+  { env = EConstr.push_rel decl env.env;
     env_R = EConstr.push_rel_context declR env.env_R; }
 
 let push_rel_context ctx ctxR env =
-  { env with
-    env = EConstr.push_rel_context ctx env.env;
+  { env = EConstr.push_rel_context ctx env.env;
     env_R = EConstr.push_rel_context ctxR env.env_R }
 
 let push_rec_types (lna, tl) tl_R env =
@@ -267,10 +264,7 @@ let push_rec_types (lna, tl) tl_R env =
     EConstr.push_rel (LocalAssum (na_R, tl_R)) accu
   in
   let renv_R = Array.fold_left_i fold env.env_R tl_R in
-  { env with env = renv; env_R = renv_R; }
-
-(* use a functor to avoid having to thread this everywhere *)
-module WithOpaqueAccess (Access:sig val access : Global.indirect_accessor end) = struct
+  { env = renv; env_R = renv_R; }
 
 (* G |- t ---> |G|, x1, x2 |- [x1,x2] in |t| *)
 let rec relation order evd env (t : constr) : constr =
@@ -999,17 +993,17 @@ open Declarations
 
 let translate_type order evd env t =
   let () = assert (List.is_empty @@ Environ.rel_context env) in
-  let env = { env; accessor = Access.access; env_R = env } in
+  let env = { env; env_R = env } in
   relation order evd env t
 
 let translate_term order evd env t =
   let () = assert (List.is_empty @@ Environ.rel_context env) in
-  let env = { env; accessor = Access.access; env_R = env } in
+  let env = { env; env_R = env } in
   translate order evd env t
 
 (* Translation of constants *)
 
-let translate_constant order evd env (kn, u) cb =
+let translate_constant ~accessor order evd env (kn, u) cb =
   let () = assert (List.is_empty @@ Environ.rel_context env) in
   let names = EInstance.kind !evd u in
   Declarations.(match cb.const_body with
@@ -1017,7 +1011,7 @@ let translate_constant order evd env (kn, u) cb =
         let (value, _, constraints) = constant_value_and_type env (kn,names) in
         let evd' = Evd.add_poly_constraints !evd constraints in
         let () = evd := evd' in
-        let env = { env; accessor = Access.access; env_R = env } in
+        let env = { env; env_R = env } in
         translate order evd env (of_constr (Option.get value))
     | OpaqueDef op ->
         let typ = Typeops.type_of_constant_in env (kn,names) in
@@ -1027,13 +1021,13 @@ let translate_constant order evd env (kn, u) cb =
         (* let evd' = Evd.add_constraints !evd cte_constraints in *)
         (* evd := evd'; *)
         let fold = mkConstU (kn, u) in
-        let (def, _) = Global.force_proof Access.access op in
+        let (def, _) = Global.force_proof accessor op in
         let def = CVars.subst_instance_constr names def in
         let etyp = of_constr typ in
         let edef = of_constr def in
         let na = Namegen.named_hd env !evd etyp Anonymous in
         let rel = Retyping.relevance_of_type env !evd etyp in
-        let env = { env; accessor = Access.access; env_R = env } in
+        let env = { env; env_R = env } in
         let pred = mkLambda (Context.make_annot na rel, etyp, substl (range (fun _ -> mkRel 1) order) (relation order evd env etyp)) in
         let res = translate order evd env edef in
         let uf_opaque_stmt = CoqConstants.eq env.env evd [| etyp; edef; fold|] in
@@ -1162,7 +1156,7 @@ let rec translate_mind_body name order evdr env kn b inst =
   debug_string [`Inductive] "computing envs ...";
   debug_env [`Inductive] "translate_mind, env = \n" env !evdr;
   debug_evar_map [`Inductive] "translate_mind, evd = \n" env !evdr;
-  let env0 = { env; accessor = Access.access; env_R = env } in
+  let env0 = { env; env_R = env } in
   let envs =
     let params = CVars.subst_instance_context inst b.mind_params_ctxt in
     let params = List.map of_rel_decl params in
@@ -1184,7 +1178,7 @@ let rec translate_mind_body name order evdr env kn b inst =
     in
     let env_arities_params = EConstr.push_rel_context params env_arities in
     let env_arities_params_R = EConstr.push_rel_context params_R env_arities in (* FIXME: sounds fishy, what if the inductive-as-rel is mentioned in the body? *)
-    let env_arities_params = { env = env_arities_params; accessor = Access.access; env_R = env_arities_params_R } in
+    let env_arities_params = { env = env_arities_params; env_R = env_arities_params_R } in
     (env_params, params, env_arities, env_arities_params)
   in
 
@@ -1255,7 +1249,7 @@ let rec translate_mind_body name order evdr env kn b inst =
 and translate_mind_param order evd env (l : Constr.rel_context) =
   let () = assert (List.is_empty @@ Environ.rel_context env) in
   let l = of_rel_context l in
-  let env = { env; accessor = Access.access; env_R = env } in
+  let env = { env; env_R = env } in
   let l = translate_rel_context order evd env l in
   List.map (to_rel_decl !evd) l
 
@@ -1354,4 +1348,3 @@ and translate_mind_inductive name order evdr env ikn mut_entry inst (env_params,
         List.map (to_constr !evdr) result
       end
   }
-end
