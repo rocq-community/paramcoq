@@ -1,9 +1,8 @@
 Declare ML Module "coq-paramcoq.plugin".
 
-Require Import PeanoNat.
-Require Import Recdef.
+From Stdlib Require Import PeanoNat Recdef.
 Set Implicit Arguments.
-Require Import Lia.
+From Stdlib Require Import Lia.
 
 Fixpoint subS (n m : nat) {struct n} : nat :=
   match n return  nat with
@@ -90,7 +89,7 @@ Global Parametricity Tactic := ((destruct_reflexivity; fail)
                             || (destruct_reflexivity_with_nat_arg_pattern; fail)
                             ||  auto). 
 
-Require Import ProofIrrelevance.
+From Stdlib Require Import ProofIrrelevance.
 
 (* Parametricity Recursive GcdS qualified. *)  (* FIXME *)
 

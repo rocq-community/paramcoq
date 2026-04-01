@@ -1,7 +1,6 @@
 Declare ML Module "coq-paramcoq.plugin".
 
-Require Import PeanoNat.
-Require Import Recdef.
+From Stdlib Require Import PeanoNat Recdef.
 Set Implicit Arguments.
 
 
@@ -76,7 +75,7 @@ Proof.
 Defined.
 
 
-Require Import ProofIrrelevance.
+From Stdlib Require Import ProofIrrelevance.
 Parametricity Recursive sig_rec.
 
 Ltac destruct_reflexivity := 

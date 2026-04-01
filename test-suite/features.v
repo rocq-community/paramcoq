@@ -3,7 +3,7 @@ Require Import Parametricity.
 
 (** Separate compilation: *)
 Parametricity nat as test.
-Require List.
+From Stdlib Require List.
 
 Parametricity Recursive List.rev.
 Check rev_R.
@@ -51,7 +51,7 @@ End Test.
 
 (** Opaque terms. **)
 
-Require ProofIrrelevance.
+From Stdlib Require ProofIrrelevance.
 
 Lemma opaque : True.
 trivial.

@@ -1,8 +1,6 @@
-
 Declare ML Module "coq-paramcoq.plugin".
 
-Require Import PeanoNat.
-Require Import PArith.
+From Stdlib Require Import PeanoNat PArith.
 
 Print BinPosDef.Pos.sub_mask.
 

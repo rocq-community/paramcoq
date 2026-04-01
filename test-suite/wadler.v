@@ -1,5 +1,4 @@
-
-Require Import List.
+From Stdlib Require Import List.
 Require Import Parametricity.
 
 Lemma nat_R_equal : 
