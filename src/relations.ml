@@ -20,6 +20,7 @@ let (set_parametricity_tactic, get_parametricity_tactic, print_parametricity_tac
 module IntMap = Map.Make(Int)
 module GMap = GlobRef.Map
 
+let canonize_ref g = Environ.QGlobRef.canonize (Global.env ()) g
 
 let initial_translations = GMap.empty
 let initial_relations = IntMap.empty
@@ -40,7 +41,7 @@ let add (n : int) f =
   relations := IntMap.add n (f translations) !relations
 
 let cache_relation (n, x, x_R) =
-  add n (GMap.add x x_R)
+  add n (GMap.add (canonize_ref x) x_R)
 
 let discharge_relation (n, x, x_R) =
   Some (n, x, x_R)
@@ -70,21 +71,21 @@ let declare_variable_relation (n : int) (v : variable) (v_R : Constant.t) =
 let get_constant n c =
   let open Summary.Ref in
   let map = IntMap.find n !relations in
-  GMap.find (GlobRef.ConstRef c) map
+  GMap.find (canonize_ref (GlobRef.ConstRef c)) map
 
 let get_inductive n i = 
   let open Summary.Ref in
   let map = IntMap.find n !relations in
-  GMap.find (GlobRef.IndRef i) map
+  GMap.find (canonize_ref (GlobRef.IndRef i)) map
 
 let get_variable n v = 
   let open Summary.Ref in
   let map = IntMap.find n !relations in
-  destConstRef (GMap.find (GlobRef.VarRef v) map)
+  destConstRef (GMap.find (canonize_ref (GlobRef.VarRef v)) map)
   
 let is_referenced n ref = 
   let open Summary.Ref in
   try
     let map = IntMap.find n !relations in 
-    GMap.mem ref map
+    GMap.mem (canonize_ref ref) map
   with Not_found -> false
