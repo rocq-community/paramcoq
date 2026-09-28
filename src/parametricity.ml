@@ -1205,15 +1205,21 @@ let rec translate_mind_body name order evdr env kn b inst =
       (Array.to_list b.mind_packets)
   in
   debug_evar_map [`Inductive] "translate_mind, evd = \n" env !evdr;
-  let univs = match b.mind_universes with
+  let usubst, univs = match b.mind_universes with
     | Monomorphic ->
       begin match template_univs with
-      | None -> Monomorphic_ind_entry
-      | Some (_, _, (uctx, default_univs)) -> Template_ind_entry { uctx; default_univs }
+      | None -> UVars.empty_sort_subst, Monomorphic_ind_entry
+      | Some (_, _, (uctx, default_univs)) ->
+        let inst, auctx = UVars.abstract_universes uctx in
+        UVars.make_instance_subst inst, Template_ind_entry { uctx = auctx; default_univs }
       end
     | Polymorphic _ ->
       let uctx, _ = (Evd.univ_entry ~poly:(PolyFlags.of_univ_poly true) !evdr) in
-      match uctx with Polymorphic_entry uctx -> Polymorphic_ind_entry uctx | _ -> assert false
+      match uctx with
+      | Polymorphic_entry uctx ->
+        let inst, auctx = UVars.abstract_universes uctx in
+        UVars.make_instance_subst inst, Polymorphic_ind_entry auctx
+      | _ -> assert false
   in
   let mind_entry_inds_R = match template_univs with
   | None -> mind_entry_inds_R
@@ -1239,10 +1245,17 @@ let rec translate_mind_body name order evdr env kn b inst =
     let entry = { entry with mind_entry_arity = arity } in
     [entry]
   in
+  let nf_univs c = CVars.subst_univs_level_constr usubst c in
+  let mind_entry_inds_R = List.map (fun entry ->
+    { entry with
+      mind_entry_arity = nf_univs entry.mind_entry_arity;
+      mind_entry_lc = List.map nf_univs entry.mind_entry_lc })
+    mind_entry_inds_R
+  in
   let res = {
     mind_entry_record = None;
     mind_entry_finite = b.mind_finite;
-    mind_entry_params = mind_entry_params_R;
+    mind_entry_params = CVars.subst_univs_level_context usubst mind_entry_params_R;
     mind_entry_inds = mind_entry_inds_R;
     mind_entry_universes = univs;
     mind_entry_variance = None;
