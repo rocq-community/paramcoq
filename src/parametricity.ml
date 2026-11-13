@@ -1144,7 +1144,7 @@ let fix_template_params order evdr env temp b params =
   let uctx = UVars.UContext.make unames (UVars.Instance.of_array (qvars,univs), cstrs) in
   let default_univs =
     let qs, us = UVars.Instance.to_array temp.template_defaults in
-    let us = Array.concat @@ Array.map_to_list (fun u -> Array.make (order+1) u) us in
+    let us = Array.concat @@ Array.map_to_list (fun _ -> Array.init (order+1) (fun _ -> UnivGen.fresh_level ())) us in
     UVars.Instance.of_array (qs,us)
   in
   umap, temp.template_concl, (uctx, default_univs), decls
