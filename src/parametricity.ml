@@ -1078,8 +1078,8 @@ let fix_template_params order evdr env temp b params =
       | None -> umap, None
       | Some u0 -> match Int.Map.find_opt u0 umap with
         | None ->
-          let ur = UnivGen.fresh_level () in
-          let r = List.init order (fun _ -> UnivGen.fresh_level ()) in
+          let ur = Univ.Level.make (UnivGen.new_univ_global ()) in
+          let r = List.init order (fun _ -> Univ.Level.make (UnivGen.new_univ_global ())) in
           Int.Map.add u0 (ur,r) umap, Some (ur, r)
         | Some r -> umap, Some r
     in
@@ -1144,7 +1144,7 @@ let fix_template_params order evdr env temp b params =
   let uctx = UVars.UContext.make unames (UVars.Instance.of_array (qvars,univs), cstrs) in
   let default_univs =
     let qs, us = UVars.Instance.to_array temp.template_defaults in
-    let us = Array.concat @@ Array.map_to_list (fun _ -> Array.init (order+1) (fun _ -> UnivGen.fresh_level ())) us in
+    let us = Array.concat @@ Array.map_to_list (fun _ -> Array.init (order+1) (fun _ -> Univ.Level.make (UnivGen.new_univ_global ()))) us in
     UVars.Instance.of_array (qs,us)
   in
   umap, temp.template_concl, (uctx, default_univs), decls

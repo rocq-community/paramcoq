@@ -160,7 +160,7 @@ let declare_inductive ~opaque_access name ?(continuation = default_continuation)
   debug_evar_map [`Inductive] "evar_map inductive " env !evd;
   let size = Declarations.(Array.length mut_body.mind_packets) in
   let mut_ind_R = DeclareInd.declare_mutual_inductive_with_eliminations translation_entry
-                  (Monomorphic_entry Univ.ContextSet.empty, UnivNames.empty_binders) [] in
+                  (Monomorphic_entry (Univ.ContextSet.empty, Univ.Level.Map.empty), UnivNames.empty_binders) [] in
   for k = 0 to size-1 do
     Relations.declare_inductive_relation arity (mut_ind, k) (mut_ind_R, k)
   done;
@@ -306,9 +306,9 @@ and declare_module ~opaque_access ?(continuation = ignore) ?name arity mp mb  =
        let env = Global.env () in
        let evd = Evd.from_env env in
        let evd, ucst =
-          Evd.(with_sort_context_set univ_rigid evd (UnivGen.fresh_constant_instance env cst))
+          Evd.fresh_constant_instance ~rigid:Evd.univ_rigid env evd cst
        in
-       ignore(declare_realizer ~opaque_access ~continuation arity evd env None (mkConstU (fst ucst, EInstance.make (snd ucst))))
+       ignore(declare_realizer ~opaque_access ~continuation arity evd env None (mkConstU ucst))
 
      | (lab, SFBconst cb) ->
        let scope = Locality.(Global ImportDefaultBehavior) in
@@ -333,7 +333,8 @@ and declare_module ~opaque_access ?(continuation = ignore) ?name arity mp mb  =
          continuation ()
        else begin
          let evd, pind =
-            Evd.(with_sort_context_set univ_rigid !evdr (UnivGen.fresh_inductive_instance env ind))
+            let evd, (ind, u) = Evd.fresh_inductive_instance ~rigid:Evd.univ_rigid env !evdr ind in
+            evd, (ind, EConstr.EInstance.kind evd u)
          in
          evdr := evd;
          debug_string [`Module] (Printf.sprintf "inductive field: '%s'." (Names.Id.to_string lab));
@@ -402,7 +403,8 @@ let command_inductive ~opaque_access ?(continuation = default_continuation) ~ful
   let env = Global.env () in
   let evd = Evd.from_env env in
   let evd, pind =
-    Evd.(with_sort_context_set univ_rigid evd (UnivGen.fresh_inductive_instance env inductive))
+    let evd, (ind, u) = Evd.fresh_inductive_instance ~rigid:Evd.univ_rigid env evd inductive in
+    evd, (ind, EConstr.EInstance.kind evd u)
   in
   let name = match names with
       | None ->
